@@ -1,29 +1,45 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { Users, GitFork, Copy, Check, ChevronDown, Award, Sparkles, TrendingUp } from 'lucide-react';
+import { GitFork } from 'lucide-react';
 
 export const NetworkView = () => {
-  const { user } = useApp();
+  const { user, networkData } = useApp();
   const [copied, setCopied] = useState(false);
-  const [selectedLevel, setSelectedLevel] = useState('L1');
-
-  // Simulated MLM Genealogy Tree data
-  const referrals = [
-    { id: 1, name: 'Jean-Marc Koffi', rank: 'Compagnon', level: 'L1', volume: 450000, status: 'ACTIF', date: '12 Juillet 2026' },
-    { id: 2, name: 'Aminata Diallo', rank: 'Apprenti', level: 'L1', volume: 200000, status: 'ACTIF', date: '18 Juillet 2026' },
-    { id: 3, name: 'Kouassi Yves', rank: 'Apprenti', level: 'L1', volume: 150000, status: 'ACTIF', date: '22 Juillet 2026' },
-    { id: 4, name: 'Bamba Sekou', rank: 'Apprenti', level: 'L2', volume: 300000, status: 'ACTIF', date: '25 Juillet 2026' },
-    { id: 5, name: 'Sylvie N\'Guessan', rank: 'Apprenti', level: 'L2', volume: 100000, status: 'INACTIF', date: '28 Juillet 2026' },
-    { id: 6, name: 'Emanuel Badou', rank: 'Apprenti', level: 'L3', volume: 650000, status: 'ACTIF', date: '29 Juillet 2026' },
-  ];
+  const [selectedLevel, setSelectedLevel] = useState(1);
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(`https://illuminati-mlm.app/ref/${user.myReferralCode}`);
+    navigator.clipboard.writeText(`https://illuminati-mlm.app/ref/${user.myReferralCode || 'ILL-88392'}`);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const filteredReferrals = referrals.filter((r) => r.level === selectedLevel);
+  // Flatten referrals by level from networkData tree
+  const tree = networkData?.tree || [];
+  
+  let level1Members = tree;
+  let level2Members = [];
+  let level3Members = [];
+
+  tree.forEach((l1) => {
+    if (l1.children) {
+      l2Members = [...l2Members, ...l1.children];
+      l1.children.forEach((l2) => {
+        if (l2.children) {
+          l3Members = [...l3Members, ...l2.children];
+        }
+      });
+    }
+  });
+
+  const getMembersForLevel = (lvl) => {
+    if (lvl === 1) return level1Members;
+    if (lvl === 2) return level2Members;
+    if (lvl === 3) return level3Members;
+    return [];
+  };
+
+  const currentMembers = getMembersForLevel(selectedLevel);
+  const totalCount = networkData?.stats?.totalTeamCount || (level1Members.length + level2Members.length + level3Members.length);
 
   return (
     <div className="space-y-4 pb-6 animate-in fade-in">
@@ -37,7 +53,7 @@ export const NetworkView = () => {
             <h2 className="font-bold text-[#e0e3e6] text-sm">Arbre Généalogique MLM</h2>
           </div>
           <span className="text-xs font-mono font-bold text-[#10B981] bg-[#10B981]/15 px-2.5 py-1 rounded-full border border-[#10B981]/30">
-            {user.totalNetworkMembers} Membres au total
+            {totalCount} Membres au total
           </span>
         </div>
 
@@ -45,10 +61,10 @@ export const NetworkView = () => {
         <div className="p-3 rounded-2xl bg-[#101416] border border-white/10 flex items-center justify-between">
           <div className="truncate mr-2">
             <span className="text-[10px] text-[#99907c] block uppercase tracking-wider font-semibold">
-              Votre Lien de Parrainage
+              Votre Code de Parrainage
             </span>
             <p className="text-xs font-mono font-bold text-[#F2CA50] truncate">
-              https://illuminati-mlm.app/ref/{user.myReferralCode}
+              {user.myReferralCode || 'ALEX-9912'}
             </p>
           </div>
           <button
@@ -57,7 +73,7 @@ export const NetworkView = () => {
               copied ? 'bg-[#10B981] text-white' : 'gold-gradient-bg text-black hover:brightness-110'
             }`}
           >
-            {copied ? 'Copié !' : 'Partager'}
+            {copied ? 'Copié !' : 'Copier Code'}
           </button>
         </div>
       </div>
@@ -65,22 +81,22 @@ export const NetworkView = () => {
       {/* Network Earnings Summary */}
       <div className="grid grid-cols-3 gap-2 text-center">
         <div className="p-3 rounded-2xl bg-[#1d2022] border border-white/5 space-y-1">
-          <span className="text-[10px] text-[#99907c] block">Commissions L1 (10%)</span>
-          <span className="text-xs font-mono font-bold text-[#F2CA50]">180 000 FCFA</span>
+          <span className="text-[10px] text-[#99907c] block">Directs (Niveau 1)</span>
+          <span className="text-xs font-mono font-bold text-[#F2CA50]">{level1Members.length} filleuls</span>
         </div>
         <div className="p-3 rounded-2xl bg-[#1d2022] border border-white/5 space-y-1">
-          <span className="text-[10px] text-[#99907c] block">Commissions L2 (5%)</span>
-          <span className="text-xs font-mono font-bold text-white">85 000 FCFA</span>
+          <span className="text-[10px] text-[#99907c] block">Niveau 2</span>
+          <span className="text-xs font-mono font-bold text-white">{level2Members.length} filleuls</span>
         </div>
         <div className="p-3 rounded-2xl bg-[#1d2022] border border-white/5 space-y-1">
-          <span className="text-[10px] text-[#99907c] block">Commissions L3 (3%)</span>
-          <span className="text-xs font-mono font-bold text-white">45 000 FCFA</span>
+          <span className="text-[10px] text-[#99907c] block">Niveau 3</span>
+          <span className="text-xs font-mono font-bold text-white">{level3Members.length} filleuls</span>
         </div>
       </div>
 
       {/* Level Selection Tabs */}
       <div className="flex bg-[#191c1e] p-1 rounded-2xl border border-white/5">
-        {['L1', 'L2', 'L3'].map((lvl) => (
+        {[1, 2, 3].map((lvl) => (
           <button
             key={lvl}
             onClick={() => setSelectedLevel(lvl)}
@@ -90,48 +106,48 @@ export const NetworkView = () => {
                 : 'text-[#99907c] hover:text-white'
             }`}
           >
-            Niveau {lvl} ({referrals.filter((r) => r.level === lvl).length})
+            Niveau {lvl} ({getMembersForLevel(lvl).length})
           </button>
         ))}
       </div>
 
       {/* Member List */}
       <div className="space-y-2">
-        {filteredReferrals.length === 0 ? (
-          <div className="p-8 text-center text-[#99907c] bg-[#191c1e] rounded-2xl">
-            Aucun filleul à ce niveau.
+        {currentMembers.length === 0 ? (
+          <div className="p-8 text-center text-[#99907c] bg-[#191c1e] rounded-2xl text-xs">
+            Aucun filleul enregistré à ce niveau pour le moment.
           </div>
         ) : (
-          filteredReferrals.map((r) => (
+          currentMembers.map((r) => (
             <div
               key={r.id}
               className="p-3.5 rounded-2xl bg-[#1d2022] border border-white/5 flex items-center justify-between"
             >
               <div className="flex items-center space-x-3">
                 <div className="w-10 h-10 rounded-xl bg-[#272a2d] border border-white/10 flex items-center justify-center font-bold text-sm text-[#F2CA50]">
-                  {r.name.charAt(0)}
+                  {r.name ? r.name.charAt(0) : 'M'}
                 </div>
                 <div>
                   <div className="flex items-center space-x-2">
                     <h4 className="text-xs font-bold text-white">{r.name}</h4>
                     <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-[#272a2d] text-[#d0c5af]">
-                      {r.rank}
+                      {r.rank || 'Apprenti'}
                     </span>
                   </div>
-                  <p className="text-[10px] text-[#99907c] mt-0.5">Rejoint le {r.date}</p>
+                  <p className="text-[10px] text-[#99907c] mt-0.5">{r.phone || r.email}</p>
                 </div>
               </div>
 
               <div className="text-right">
                 <p className="text-xs font-mono font-bold text-[#F2CA50]">
-                  {r.volume.toLocaleString()} FCFA
+                  {(r.balance || 0).toLocaleString()} FCFA
                 </p>
                 <span
                   className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
                     r.status === 'ACTIF' ? 'bg-[#10B981]/15 text-[#10B981]' : 'bg-[#E63946]/15 text-[#E63946]'
                   }`}
                 >
-                  {r.status}
+                  {r.status || 'INACTIF'}
                 </span>
               </div>
             </div>

@@ -7,6 +7,8 @@ import { ManualDepositModal } from './components/ManualDepositModal';
 import { WithdrawModal } from './components/WithdrawModal';
 import { AdminDrawer } from './components/AdminDrawer';
 import { RankSuccessModal } from './components/RankSuccessModal';
+import { InactivityTimer } from './components/InactivityTimer';
+
 
 import { DashboardView } from './views/DashboardView';
 import { NetworkView } from './views/NetworkView';
@@ -14,11 +16,22 @@ import { FinanceView } from './views/FinanceView';
 import { RanksView } from './views/RanksView';
 import { HistoryView } from './views/HistoryView';
 import { ProfileView } from './views/ProfileView';
+import { AuthView } from './views/AuthView';
 
 const MainApp = () => {
-  const { activeTab } = useApp();
+  const { activeTab, isAuthenticated } = useApp();
+
+  if (!isAuthenticated) {
+    return (
+      <>
+        <AuthView />
+        <Toast />
+      </>
+    );
+  }
 
   return (
+
     <div className="min-h-screen bg-[#101416] text-[#e0e3e6] flex flex-col font-sans max-w-md mx-auto relative border-x border-white/5 shadow-2xl">
       {/* Top Header */}
       <Header />
@@ -41,10 +54,12 @@ const MainApp = () => {
       <WithdrawModal />
       <AdminDrawer />
       <RankSuccessModal />
+      <InactivityTimer />
       <Toast />
     </div>
   );
 };
+
 
 export default function App() {
   return (

@@ -3,7 +3,7 @@ import { useApp } from '../context/AppContext';
 import { User, Shield, Smartphone, Key, Share2, LogOut, Check, Copy, ChevronRight } from 'lucide-react';
 
 export const ProfileView = () => {
-  const { user, isAdminMode, setIsAdminMode, showToastNotification } = useApp();
+  const { user, isAdminMode, setIsAdminMode, showToastNotification, logout } = useApp();
   const [copied, setCopied] = React.useState(false);
 
   const handleCopyCode = () => {
@@ -132,6 +132,18 @@ export const ProfileView = () => {
             <span>Mes Numéros de Retrait Par Défaut</span>
           </div>
           <ChevronRight className="w-4 h-4 text-[#99907c]" />
+        </div>
+
+        {/* Logout Button */}
+        <div
+          onClick={logout}
+          className="p-3 rounded-2xl hover:bg-[#E63946]/10 flex items-center justify-between text-[#E63946] cursor-pointer transition-colors pt-2 border-t border-white/5"
+        >
+          <div className="flex items-center space-x-3 font-bold">
+            <LogOut className="w-4 h-4 text-[#E63946]" />
+            <span>Se Déconnecter</span>
+          </div>
+          <ChevronRight className="w-4 h-4 text-[#E63946]" />
         </div>
       </div>
     </div>

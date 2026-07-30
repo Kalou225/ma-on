@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { Shield, X, Check, AlertCircle, Plus, PhoneCall, ArrowUpRight, Smartphone, Clock, RefreshCw } from 'lucide-react';
+import { Shield, X, Check, Plus, Smartphone, Clock, RefreshCw, ArrowUpRight } from 'lucide-react';
 
 export const AdminDrawer = () => {
   const {
@@ -10,12 +10,18 @@ export const AdminDrawer = () => {
     addPaymentNumber,
     togglePaymentNumber,
     transactions,
+    pendingDeposits,
+    pendingWithdrawals,
     approveDeposit,
     rejectDeposit,
+    approveWithdrawal,
+    rejectWithdrawal,
+    refreshUserData,
   } = useApp();
 
-  const [activeAdminTab, setActiveAdminTab] = useState('pending'); // 'pending' | 'numbers' | 'all'
+  const [activeAdminTab, setActiveAdminTab] = useState('deposits'); // 'deposits' | 'withdrawals' | 'numbers' | 'all'
   const [showAddNumberModal, setShowAddNumberModal] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // New Number Form State
   const [provider, setProvider] = useState('Orange Money');
@@ -25,16 +31,28 @@ export const AdminDrawer = () => {
 
   if (!isAdminMode) return null;
 
-  const pendingDeposits = transactions.filter((t) => t.status === 'EN_ATTENTE');
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await refreshUserData();
+    setIsRefreshing(false);
+  };
 
-  const handleAddNumber = (e) => {
+  const handleAddNumber = async (e) => {
     e.preventDefault();
     if (!number || !holder) return;
-    addPaymentNumber({ provider, number, holder, icon });
+    await addPaymentNumber({ provider, number, holder, icon });
     setNumber('');
     setHolder('');
     setShowAddNumberModal(false);
   };
+
+  const allPendingDeposits = pendingDeposits && pendingDeposits.length > 0
+    ? pendingDeposits
+    : transactions.filter((t) => (t.type === 'DEPOT_ACTIVATION' || t.type === 'DEPOT_FONDS') && t.status === 'EN_ATTENTE');
+
+  const allPendingWithdrawals = pendingWithdrawals && pendingWithdrawals.length > 0
+    ? pendingWithdrawals
+    : transactions.filter((t) => t.type === 'RETRAIT_FONDS' && t.status === 'EN_ATTENTE');
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/85 backdrop-blur-lg animate-in fade-in">
@@ -47,119 +65,132 @@ export const AdminDrawer = () => {
             </div>
             <div>
               <div className="flex items-center space-x-2">
-                <h3 className="font-bold text-sm text-white">Portail Administration (Test)</h3>
+                <h3 className="font-bold text-sm text-white">Portail Administration</h3>
                 <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-[#E63946] text-white">
                   Back-Office
                 </span>
               </div>
-              <p className="text-[11px] text-[#99907c]">Supervision et Validation des Dépôts Manuels</p>
+              <p className="text-[11px] text-[#99907c]">Validation Dépôts, Retraits & Commissions MLM</p>
             </div>
           </div>
-          <button
-            onClick={() => setIsAdminMode(false)}
-            className="p-2 rounded-full bg-[#191c1e] hover:bg-[#272a2d] text-white"
-          >
-            <X className="w-4 h-4" />
-          </button>
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={handleRefresh}
+              className="p-2 rounded-full bg-[#191c1e] hover:bg-[#272a2d] text-[#F2CA50]"
+              title="Actualiser"
+            >
+              <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+            </button>
+            <button
+              onClick={() => setIsAdminMode(false)}
+              className="p-2 rounded-full bg-[#191c1e] hover:bg-[#272a2d] text-white"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
-        {/* Admin Tabs */}
-        <div className="flex border-b border-white/10 bg-[#191c1e] px-4 pt-2">
+        {/* Admin Navigation Tabs */}
+        <div className="flex border-b border-white/10 bg-[#191c1e] px-2 pt-2 overflow-x-auto">
           <button
-            onClick={() => setActiveAdminTab('pending')}
-            className={`px-4 py-2.5 text-xs font-bold border-b-2 flex items-center space-x-2 transition-all ${
-              activeAdminTab === 'pending'
+            onClick={() => setActiveAdminTab('deposits')}
+            className={`px-3 py-2 text-xs font-bold border-b-2 flex items-center space-x-1.5 whitespace-nowrap transition-all ${
+              activeAdminTab === 'deposits'
                 ? 'border-[#E63946] text-[#E63946]'
                 : 'border-transparent text-[#99907c] hover:text-white'
             }`}
           >
             <Clock className="w-3.5 h-3.5" />
-            <span>Dépôts en Attente ({pendingDeposits.length})</span>
+            <span>Dépôts ({allPendingDeposits.length})</span>
+          </button>
+
+          <button
+            onClick={() => setActiveAdminTab('withdrawals')}
+            className={`px-3 py-2 text-xs font-bold border-b-2 flex items-center space-x-1.5 whitespace-nowrap transition-all ${
+              activeAdminTab === 'withdrawals'
+                ? 'border-[#E63946] text-[#E63946]'
+                : 'border-transparent text-[#99907c] hover:text-white'
+            }`}
+          >
+            <ArrowUpRight className="w-3.5 h-3.5" />
+            <span>Retraits ({allPendingWithdrawals.length})</span>
           </button>
 
           <button
             onClick={() => setActiveAdminTab('numbers')}
-            className={`px-4 py-2.5 text-xs font-bold border-b-2 flex items-center space-x-2 transition-all ${
+            className={`px-3 py-2 text-xs font-bold border-b-2 flex items-center space-x-1.5 whitespace-nowrap transition-all ${
               activeAdminTab === 'numbers'
                 ? 'border-[#E63946] text-[#E63946]'
                 : 'border-transparent text-[#99907c] hover:text-white'
             }`}
           >
             <Smartphone className="w-3.5 h-3.5" />
-            <span>Numéros de Réception ({paymentNumbers.length})</span>
+            <span>Numéros ({paymentNumbers.length})</span>
           </button>
 
           <button
             onClick={() => setActiveAdminTab('all')}
-            className={`px-4 py-2.5 text-xs font-bold border-b-2 flex items-center space-x-2 transition-all ${
+            className={`px-3 py-2 text-xs font-bold border-b-2 flex items-center space-x-1.5 whitespace-nowrap transition-all ${
               activeAdminTab === 'all'
                 ? 'border-[#E63946] text-[#E63946]'
                 : 'border-transparent text-[#99907c] hover:text-white'
             }`}
           >
-            <span>Toutes les Transactions</span>
+            <span>Historique</span>
           </button>
         </div>
 
-        {/* Tab Body */}
+        {/* Tab Content Body */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
-          {/* TAB 1: PENDING DEPOSITS FOR ADMIN VALIDATION */}
-          {activeAdminTab === 'pending' && (
+          {/* TAB 1: PENDING DEPOSITS */}
+          {activeAdminTab === 'deposits' && (
             <div className="space-y-3">
               <div className="p-3 rounded-xl bg-[#F2CA50]/10 border border-[#F2CA50]/20 text-xs text-[#d0c5af]">
-                💡 <strong>Instructions pour l'Admin :</strong> Vérifiez sur votre téléphone récepteur si la transaction existe. Si oui, cliquez sur <strong>"Valider le Dépôt"</strong>. Le compte du membre sera automatiquement crédité et activé !
+                💡 <strong>Validation Dépôt :</strong> En validant un dépôt d'activation, le compte membre est activé et une <strong>commission de 10%</strong> est versée au parrain.
               </div>
 
-              {pendingDeposits.length === 0 ? (
+              {allPendingDeposits.length === 0 ? (
                 <div className="text-center py-12 text-[#99907c]">
                   <Check className="w-10 h-10 mx-auto text-[#10B981] mb-2 opacity-50" />
                   <p className="text-sm font-semibold">Aucun dépôt en attente</p>
-                  <p className="text-xs mt-1">
-                    Faites une demande de dépôt depuis l'application membre pour tester la validation.
-                  </p>
                 </div>
               ) : (
-                pendingDeposits.map((item) => (
-                  <div
-                    key={item.id}
-                    className="p-4 rounded-2xl bg-[#191c1e] border border-white/10 space-y-3"
-                  >
+                allPendingDeposits.map((item) => (
+                  <div key={item.id} className="p-4 rounded-2xl bg-[#191c1e] border border-white/10 space-y-3">
                     <div className="flex items-center justify-between pb-2 border-b border-white/5">
                       <div>
                         <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-[#F2CA50]/20 text-[#F2CA50]">
                           {item.type === 'DEPOT_ACTIVATION' ? '⚡ ACTIVATION COMPTE' : '💰 DÉPÔT FONDS'}
                         </span>
-                        <h4 className="text-sm font-bold text-white mt-1">{item.label}</h4>
+                        <h4 className="text-sm font-bold text-white mt-1">{item.user_name || item.label}</h4>
                       </div>
                       <span className="text-lg font-mono font-bold text-[#F2CA50]">
                         +{item.amount.toLocaleString()} FCFA
                       </span>
                     </div>
 
-                    {/* Deposit Details grid */}
                     <div className="grid grid-cols-2 gap-2 text-xs">
                       <div className="bg-[#101416] p-2.5 rounded-xl border border-white/5">
-                        <span className="text-[10px] text-[#99907c] block">Numéro d'Expéditeur</span>
-                        <span className="font-mono font-semibold text-white">{item.senderNumber}</span>
+                        <span className="text-[10px] text-[#99907c] block">Expéditeur</span>
+                        <span className="font-mono font-semibold text-white">{item.senderNumber || item.sender_number || 'N/A'}</span>
                       </div>
 
                       <div className="bg-[#101416] p-2.5 rounded-xl border border-white/5">
-                        <span className="text-[10px] text-[#99907c] block">ID du Dépôt / Ref</span>
-                        <span className="font-mono font-bold text-[#F2CA50]">{item.txnId}</span>
+                        <span className="text-[10px] text-[#99907c] block">Réf Transaction / TxnID</span>
+                        <span className="font-mono font-bold text-[#F2CA50]">{item.txnId || item.txn_id}</span>
                       </div>
 
                       <div className="bg-[#101416] p-2.5 rounded-xl border border-white/5">
                         <span className="text-[10px] text-[#99907c] block">Opérateur & Récepteur</span>
-                        <span className="font-medium text-white">{item.provider} ({item.recipientNumber})</span>
+                        <span className="font-medium text-white">{item.provider} ({item.recipientNumber || item.recipient_number})</span>
                       </div>
 
                       <div className="bg-[#101416] p-2.5 rounded-xl border border-white/5">
-                        <span className="text-[10px] text-[#99907c] block">Date et Heure du dépôt</span>
-                        <span className="font-mono text-white">{item.dateTime}</span>
+                        <span className="text-[10px] text-[#99907c] block">Date</span>
+                        <span className="font-mono text-white">{item.dateTime || item.date_time}</span>
                       </div>
                     </div>
 
-                    {/* Actions: Approve / Reject */}
                     <div className="flex items-center space-x-2 pt-1">
                       <button
                         onClick={() => approveDeposit(item.id)}
@@ -183,7 +214,79 @@ export const AdminDrawer = () => {
             </div>
           )}
 
-          {/* TAB 2: MANAGING ADMIN RECEPTION NUMBERS */}
+          {/* TAB 2: PENDING WITHDRAWALS */}
+          {activeAdminTab === 'withdrawals' && (
+            <div className="space-y-3">
+              <div className="p-3 rounded-xl bg-[#E63946]/10 border border-[#E63946]/20 text-xs text-[#d0c5af]">
+                ⚠️ <strong>Demandes de Retrait :</strong> Vérifiez le solde et effectuez le transfert Mobile Money vers le numéro du membre avant de cliquer sur <strong>"Approuver Retrait"</strong>.
+              </div>
+
+              {allPendingWithdrawals.length === 0 ? (
+                <div className="text-center py-12 text-[#99907c]">
+                  <Check className="w-10 h-10 mx-auto text-[#10B981] mb-2 opacity-50" />
+                  <p className="text-sm font-semibold">Aucun retrait en attente</p>
+                </div>
+              ) : (
+                allPendingWithdrawals.map((item) => (
+                  <div key={item.id} className="p-4 rounded-2xl bg-[#191c1e] border border-white/10 space-y-3">
+                    <div className="flex items-center justify-between pb-2 border-b border-white/5">
+                      <div>
+                        <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-[#E63946]/20 text-[#E63946]">
+                          💸 RETRAIT MEMBRE
+                        </span>
+                        <h4 className="text-sm font-bold text-white mt-1">{item.user_name || item.label}</h4>
+                      </div>
+                      <span className="text-lg font-mono font-bold text-[#E63946]">
+                        -{item.amount.toLocaleString()} FCFA
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div className="bg-[#101416] p-2.5 rounded-xl border border-white/5">
+                        <span className="text-[10px] text-[#99907c] block">Numéro de Réception</span>
+                        <span className="font-mono font-semibold text-[#F2CA50]">{item.recipientNumber || item.recipient_number}</span>
+                      </div>
+
+                      <div className="bg-[#101416] p-2.5 rounded-xl border border-white/5">
+                        <span className="text-[10px] text-[#99907c] block">Moyen de Paiement</span>
+                        <span className="font-medium text-white">{item.provider}</span>
+                      </div>
+
+                      <div className="bg-[#101416] p-2.5 rounded-xl border border-white/5">
+                        <span className="text-[10px] text-[#99907c] block">ID de Retrait</span>
+                        <span className="font-mono text-white">{item.id}</span>
+                      </div>
+
+                      <div className="bg-[#101416] p-2.5 rounded-xl border border-white/5">
+                        <span className="text-[10px] text-[#99907c] block">Date de la demande</span>
+                        <span className="font-mono text-white">{item.dateTime || item.date_time}</span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center space-x-2 pt-1">
+                      <button
+                        onClick={() => approveWithdrawal(item.id)}
+                        className="flex-1 py-2.5 rounded-xl bg-[#10B981] hover:bg-[#10B981]/90 text-white font-bold text-xs flex items-center justify-center space-x-1.5 shadow-lg active:scale-95 transition-all"
+                      >
+                        <Check className="w-4 h-4" />
+                        <span>Approuver Retrait</span>
+                      </button>
+
+                      <button
+                        onClick={() => rejectWithdrawal(item.id)}
+                        className="px-4 py-2.5 rounded-xl bg-[#E63946]/20 hover:bg-[#E63946]/30 text-[#E63946] border border-[#E63946]/40 font-bold text-xs flex items-center justify-center space-x-1 active:scale-95 transition-all"
+                      >
+                        <X className="w-4 h-4" />
+                        <span>Rejeter & Rembourser</span>
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+
+          {/* TAB 3: ADMIN PAYMENT NUMBERS */}
           {activeAdminTab === 'numbers' && (
             <div className="space-y-3">
               <div className="flex items-center justify-between">
@@ -199,10 +302,7 @@ export const AdminDrawer = () => {
 
               <div className="space-y-2">
                 {paymentNumbers.map((p) => (
-                  <div
-                    key={p.id}
-                    className="p-3 rounded-2xl bg-[#191c1e] border border-white/10 flex items-center justify-between"
-                  >
+                  <div key={p.id} className="p-3 rounded-2xl bg-[#191c1e] border border-white/10 flex items-center justify-between">
                     <div className="flex items-center space-x-3">
                       <span className="text-2xl">{p.icon}</span>
                       <div>
@@ -230,20 +330,17 @@ export const AdminDrawer = () => {
             </div>
           )}
 
-          {/* TAB 3: ALL TRANSACTIONS LOG */}
+          {/* TAB 4: ALL TRANSACTIONS */}
           {activeAdminTab === 'all' && (
             <div className="space-y-2">
               {transactions.map((t) => (
-                <div
-                  key={t.id}
-                  className="p-3 rounded-2xl bg-[#191c1e] border border-white/5 flex items-center justify-between text-xs"
-                >
+                <div key={t.id} className="p-3 rounded-2xl bg-[#191c1e] border border-white/5 flex items-center justify-between text-xs">
                   <div>
                     <div className="flex items-center space-x-2">
                       <span className="font-bold text-white">{t.label}</span>
                       <span className="font-mono text-[10px] text-[#99907c]">{t.id}</span>
                     </div>
-                    <p className="text-[11px] text-[#d0c5af] mt-0.5">{t.dateTime} • Ref: {t.txnId || 'N/A'}</p>
+                    <p className="text-[11px] text-[#d0c5af] mt-0.5">{t.dateTime || t.date_time} • Ref: {t.txnId || t.txn_id || 'N/A'}</p>
                     <p className="text-[10px] text-[#99907c]">{t.note}</p>
                   </div>
 
