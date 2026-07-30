@@ -56,10 +56,10 @@ export const AuthView = () => {
 
         <div>
           <h1 className="text-2xl font-extrabold tracking-tight gold-gradient-text">
-            MA-ON / ILLUMINATI
+            ECO-FINANCE
           </h1>
           <p className="text-xs text-[#d0c5af] mt-1 font-medium">
-            Plateforme Financière & Gestion MLM Privée
+            Plateforme Financière & Gestion MLM Eco-Finance
           </p>
         </div>
 
@@ -268,7 +268,7 @@ export const AuthView = () => {
           <ShieldCheck className="w-3.5 h-3.5 text-[#10B981]" />
           <span>Plateforme Sécurisée • Dépôts Manuels Mobile Money</span>
         </div>
-        <p className="text-[10px] text-[#99907c]">© 2026 Illuminati Financial Ecosystem</p>
+        <p className="text-[10px] text-[#99907c]">© 2026 Eco-Finance Ecosystem</p>
       </div>
     </div>
   );

@@ -50,6 +50,15 @@ export const api = {
       const res = await fetch(`${API_BASE}/auth/me`);
       return handleResponse(res);
     },
+
+    updateAvatar: async (avatarUrl) => {
+      const res = await fetch(`${API_BASE}/auth/update-avatar`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ avatarUrl }),
+      });
+      return handleResponse(res);
+    },
   },
 
   // Deposits API

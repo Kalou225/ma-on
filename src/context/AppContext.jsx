@@ -260,12 +260,23 @@ export const AppProvider = ({ children }) => {
         sponsorCode: data.user.sponsorCode || data.user.sponsor_code,
       }));
       setActiveTab('dashboard');
-      showToastNotification('Connexion réussie ! Bienvenue sur Illuminati Financial.', 'success');
+      showToastNotification('Connexion réussie ! Bienvenue sur Eco-Finance.', 'success');
       await refreshUserData();
       return true;
     } catch (err) {
       showToastNotification(err.message || 'Échec de la connexion', 'error');
       return false;
+    }
+  };
+
+  const updateAvatar = async (avatarUrl) => {
+    try {
+      await api.auth.updateAvatar(avatarUrl);
+      setUser((prev) => ({ ...prev, avatarUrl }));
+      showToastNotification('Photo de profil mise à jour avec succès !', 'success');
+    } catch (err) {
+      setUser((prev) => ({ ...prev, avatarUrl }));
+      showToastNotification('Photo de profil mise à jour localement.', 'info');
     }
   };
 
@@ -325,6 +336,7 @@ export const AppProvider = ({ children }) => {
         login,
         signup,
         logout,
+        updateAvatar,
         showDepositModal,
         setShowDepositModal,
         showWithdrawModal,

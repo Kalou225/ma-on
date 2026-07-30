@@ -115,6 +115,7 @@ router.post('/login', strictAuthRateLimiter, validateRequest(loginSchema), (req,
       rank: user.rank,
       balance: user.balance,
       myReferralCode: user.my_referral_code,
+      avatarUrl: user.avatar_url,
     },
     accessToken,
   });
@@ -157,7 +158,7 @@ router.post('/logout', (req, res) => {
 
 // 3b. ME (GET CURRENT LOGGED IN USER)
 router.get('/me', authenticateToken, (req, res) => {
-  const user = db.prepare('SELECT id, name, email, phone, role, status, rank, balance, network_earnings, my_referral_code, sponsor_code, mfa_enabled FROM users WHERE id = ?').get(req.user.id);
+  const user = db.prepare('SELECT id, name, email, phone, role, status, rank, balance, network_earnings, my_referral_code, sponsor_code, mfa_enabled, avatar_url FROM users WHERE id = ?').get(req.user.id);
   if (!user) {
     return res.status(404).json({ error: 'Utilisateur non trouvé' });
   }
@@ -175,8 +176,19 @@ router.get('/me', authenticateToken, (req, res) => {
       myReferralCode: user.my_referral_code,
       sponsorCode: user.sponsor_code,
       mfaEnabled: Boolean(user.mfa_enabled),
+      avatarUrl: user.avatar_url,
     },
   });
+});
+
+// 3c. UPDATE AVATAR
+router.post('/update-avatar', authenticateToken, (req, res) => {
+  const { avatarUrl } = req.body;
+  if (!avatarUrl) {
+    return res.status(400).json({ error: 'Image requise.' });
+  }
+  db.prepare('UPDATE users SET avatar_url = ? WHERE id = ?').run(avatarUrl, req.user.id);
+  res.json({ message: 'Photo de profil mise à jour avec succès.', avatarUrl });
 });
 
 

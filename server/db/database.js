@@ -15,7 +15,6 @@ if (!fs.existsSync(dataDir)) {
 const dbPath = path.join(dataDir, 'ma-on-secure.db');
 const db = new Database(dbPath);
 
-
 // Enable WAL mode & foreign keys for performance and safety
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
@@ -28,8 +27,8 @@ db.exec(`
     email TEXT UNIQUE NOT NULL,
     phone TEXT NOT NULL,
     password_hash TEXT NOT NULL,
-    role TEXT NOT NULL DEFAULT 'MEMBRE', -- 'MEMBRE' | 'ADMIN'
-    status TEXT NOT NULL DEFAULT 'INACTIF', -- 'ACTIF' | 'INACTIF'
+    role TEXT NOT NULL DEFAULT 'MEMBRE',
+    status TEXT NOT NULL DEFAULT 'INACTIF',
     rank TEXT NOT NULL DEFAULT 'Apprenti',
     balance REAL NOT NULL DEFAULT 0,
     network_earnings REAL NOT NULL DEFAULT 0,
@@ -37,6 +36,7 @@ db.exec(`
     sponsor_code TEXT,
     mfa_secret TEXT,
     mfa_enabled INTEGER NOT NULL DEFAULT 0,
+    avatar_url TEXT,
     failed_attempts INTEGER NOT NULL DEFAULT 0,
     lockout_until DATETIME,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -55,15 +55,15 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS transactions (
     id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL,
-    type TEXT NOT NULL, -- 'DEPOT_ACTIVATION' | 'DEPOT_FONDS' | 'RETRAIT_FONDS' | 'COMMISSION_RESEAU'
+    type TEXT NOT NULL,
     label TEXT NOT NULL,
     amount REAL NOT NULL,
     provider TEXT,
     recipient_number TEXT,
     sender_number TEXT,
-    txn_id TEXT UNIQUE, -- Unique index to prevent duplicate deposits (Anti-Replay)
+    txn_id TEXT UNIQUE,
     date_time TEXT NOT NULL,
-    status TEXT NOT NULL DEFAULT 'EN_ATTENTE', -- 'EN_ATTENTE' | 'VALIDÉ' | 'REJETÉ'
+    status TEXT NOT NULL DEFAULT 'EN_ATTENTE',
     note TEXT,
     reviewed_by TEXT,
     reviewed_at DATETIME,
@@ -79,6 +79,12 @@ db.exec(`
     FOREIGN KEY (user_id) REFERENCES users(id)
   );
 `);
+
+try {
+  db.exec(`ALTER TABLE users ADD COLUMN avatar_url TEXT;`);
+} catch (e) {
+  // Column already exists
+}
 
 // Seed default Admin & User if database is empty
 const checkUser = db.prepare('SELECT count(*) as count FROM users').get();
@@ -125,10 +131,10 @@ if (checkUser.count === 0) {
   const insertNumber = db.prepare(`
     INSERT INTO admin_payment_numbers (provider, number, holder, icon) VALUES (?, ?, ?, ?)
   `);
-  insertNumber.run('Wave', '+225 07 00 11 22 33', 'Illuminati Treasury Wave', '🌊');
-  insertNumber.run('Orange Money', '+225 07 88 77 66 55', 'Illuminati Pay OM CI', '🟠');
-  insertNumber.run('MTN MoMo', '+225 05 44 33 22 11', 'Illuminati MoMo CI', '🟡');
-  insertNumber.run('Moov Money', '+225 01 99 00 11 22', 'Illuminati Treasury Moov', '🟢');
+  insertNumber.run('Wave', '+225 07 00 11 22 33', 'Eco-Finance Treasury Wave', '🌊');
+  insertNumber.run('Orange Money', '+225 07 88 77 66 55', 'Eco-Finance Pay OM CI', '🟠');
+  insertNumber.run('MTN MoMo', '+225 05 44 33 22 11', 'Eco-Finance MoMo CI', '🟡');
+  insertNumber.run('Moov Money', '+225 01 99 00 11 22', 'Eco-Finance Treasury Moov', '🟢');
 }
 
 export default db;
