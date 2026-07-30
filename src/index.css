@@ -1,0 +1,82 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --bg-surface: #101416;
+    --bg-surface-deep: #080808;
+    --bg-surface-container: #1d2022;
+    --bg-surface-high: #272a2d;
+    --bg-surface-highest: #323538;
+    --primary-gold: #f2ca50;
+    --primary-gold-dark: #d4af37;
+    --gold-glow: rgba(212, 175, 55, 0.25);
+    --text-primary: #e0e3e6;
+    --text-muted: #d0c5af;
+    --text-dim: #99907c;
+    --alert-crimson: #E63946;
+    --success-emerald: #10B981;
+  }
+
+  body {
+    background-color: #101416;
+    color: #e0e3e6;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    margin: 0;
+    padding: 0;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+    overflow-x: hidden;
+  }
+}
+
+/* Custom Utilities for Gold Aesthetics */
+.gold-gradient-bg {
+  background: linear-gradient(135deg, #F2CA50 0%, #D4AF37 50%, #B8860B 100%);
+}
+
+.gold-gradient-text {
+  background: linear-gradient(135deg, #FFE088 0%, #F2CA50 50%, #D4AF37 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.gold-border {
+  border: 1px solid rgba(212, 175, 55, 0.35);
+}
+
+.gold-box-shadow {
+  box-shadow: 0 4px 20px rgba(212, 175, 55, 0.15);
+}
+
+.glass-header {
+  background: rgba(16, 20, 22, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.glass-nav {
+  background: rgba(16, 20, 22, 0.9);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-top: 1px solid rgba(212, 175, 55, 0.15);
+}
+
+.glass-card {
+  background: rgba(29, 32, 34, 0.7);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #101416;
+}
+::-webkit-scrollbar-thumb {
+  background: #272a2d;
+  border-radius: 9999px;
+}
