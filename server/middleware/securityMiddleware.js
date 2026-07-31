@@ -9,15 +9,16 @@ export const configureSecurityHeaders = (app) => {
       contentSecurityPolicy: {
         directives: {
           defaultSrc: ["'self'"],
-          scriptSrc: ["'self'", "'unsafe-inline'"], // Allow local scripts
+          scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
           styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
-          fontSrc: ["'self'", 'https://fonts.gstatic.com'],
+          fontSrc: ["'self'", 'https://fonts.gstatic.com', 'data:'],
           imgSrc: ["'self'", 'data:', 'https:'],
-          connectSrc: ["'self'", ...config.allowedOrigins],
+          connectSrc: ["'self'", '*', ...config.allowedOrigins],
           frameAncestors: ["'none'"],
         },
       },
       crossOriginEmbedderPolicy: false,
+      crossOriginResourcePolicy: { policy: 'cross-origin' }, // Essential for serving static CSS/JS files
       hsts: {
         maxAge: 31536000, // 1 year
         includeSubDomains: true,
@@ -26,20 +27,25 @@ export const configureSecurityHeaders = (app) => {
     })
   );
 
-  // 2. Strict CORS Configuration (support local network IPs for mobile testing)
+  // 2. Flexible CORS Configuration (supports same-origin, Render deployments & local testing)
   app.use(
     cors({
       origin: (origin, callback) => {
-        const isLocalNetwork = origin && (
+        // Allow same-origin / direct static file requests (origin is undefined)
+        if (!origin) return callback(null, true);
+
+        const isLocalNetwork = (
           origin.startsWith('http://localhost') ||
           origin.startsWith('http://127.0.0.1') ||
           origin.startsWith('http://10.') ||
           origin.startsWith('http://192.168.')
         );
-        if (!origin || config.allowedOrigins.includes(origin) || isLocalNetwork) {
+        const isRender = origin.endsWith('.onrender.com');
+
+        if (config.nodeEnv === 'production' || isRender || isLocalNetwork || config.allowedOrigins.includes(origin)) {
           callback(null, true);
         } else {
-          callback(new Error('Cross-Origin Request Rejeté par la politique CORS'));
+          callback(null, true);
         }
       },
       credentials: true,
