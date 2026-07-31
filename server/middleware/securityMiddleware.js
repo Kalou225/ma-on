@@ -26,11 +26,17 @@ export const configureSecurityHeaders = (app) => {
     })
   );
 
-  // 2. Strict CORS Configuration
+  // 2. Strict CORS Configuration (support local network IPs for mobile testing)
   app.use(
     cors({
       origin: (origin, callback) => {
-        if (!origin || config.allowedOrigins.includes(origin)) {
+        const isLocalNetwork = origin && (
+          origin.startsWith('http://localhost') ||
+          origin.startsWith('http://127.0.0.1') ||
+          origin.startsWith('http://10.') ||
+          origin.startsWith('http://192.168.')
+        );
+        if (!origin || config.allowedOrigins.includes(origin) || isLocalNetwork) {
           callback(null, true);
         } else {
           callback(new Error('Cross-Origin Request Rejeté par la politique CORS'));

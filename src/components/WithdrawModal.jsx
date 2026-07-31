@@ -10,18 +10,29 @@ export const WithdrawModal = () => {
   const [phone, setPhone] = useState(user.phone || '');
   const [error, setError] = useState('');
 
+  const maxWithdrawable = Math.floor((user.activationBalance || 0) / 3);
+  const commBalance = user.commissionBalance || user.balance || 0;
+
   if (!showWithdrawModal) return null;
 
   const handleSubmit = (e) => {
     e.preventDefault();
     setError('');
+    if (user.status === 'INACTIF' || (user.activationBalance || 0) <= 0) {
+      setError('Retrait impossible : Votre compte est actuellement INACTIF. Vous devez effectuer votre premier dépôt d\'activation pour débloquer les retraits (vos commissions accumulées restent bien conservées).');
+      return;
+    }
     const amt = parseFloat(amount);
     if (!amt || amt <= 0) {
       setError('Veuillez entrer un montant valide.');
       return;
     }
-    if (amt > user.balance) {
-      setError(`Solde insuffisant. Solde disponible : ${user.balance.toLocaleString()} FCFA`);
+    if (amt > commBalance) {
+      setError(`Solde commission insuffisant. Solde retirable disponible : ${commBalance.toLocaleString()} FCFA`);
+      return;
+    }
+    if (amt > maxWithdrawable) {
+      setError(`Montant supérieur au plafond de 1/3. Votre limite maximale autorisée est de ${maxWithdrawable.toLocaleString()} FCFA.`);
       return;
     }
     if (!phone.trim()) {
@@ -42,7 +53,7 @@ export const WithdrawModal = () => {
             </div>
             <div>
               <h3 className="font-bold text-sm text-[#e0e3e6]">Demande de Retrait</h3>
-              <p className="text-[11px] text-[#99907c]">Transfert vers votre Mobile Money</p>
+              <p className="text-[11px] text-[#99907c]">1 seul retrait autorisé par mois calendaire</p>
             </div>
           </div>
           <button
@@ -53,11 +64,17 @@ export const WithdrawModal = () => {
           </button>
         </div>
 
-        <div className="p-3 rounded-2xl bg-[#191c1e] border border-white/5 flex items-center justify-between text-xs">
-          <span className="text-[#99907c]">Solde disponible :</span>
-          <span className="font-mono font-bold text-[#F2CA50] text-sm">
-            {user.balance.toLocaleString()} FCFA
-          </span>
+        <div className="p-3 rounded-2xl bg-[#191c1e] border border-white/5 space-y-1.5 text-xs">
+          <div className="flex justify-between items-center">
+            <span className="text-[#99907c]">Solde Commission retirable :</span>
+            <span className="font-mono font-bold text-[#F2CA50] text-sm">
+              {commBalance.toLocaleString()} FCFA
+            </span>
+          </div>
+          <div className="flex justify-between items-center pt-1 border-t border-white/5 text-[11px]">
+            <span className="text-[#99907c]">Plafond Autorisé (1/3 du Solde Activation) :</span>
+            <strong className="text-white font-mono">{maxWithdrawable.toLocaleString()} FCFA</strong>
+          </div>
         </div>
 
         {error && (

@@ -64,23 +64,49 @@ export const AppProvider = ({ children }) => {
     setTimeout(() => setToast(null), 4000);
   };
 
-  // Helper to refresh user data & transactions from API
+  // Helper to refresh user data, notifications & transactions from API
   const refreshUserData = useCallback(async () => {
     try {
       const meData = await api.auth.getMe();
       if (meData && meData.user) {
-        setUser((prev) => ({
-          ...prev,
-          ...meData.user,
-          myReferralCode: meData.user.myReferralCode || meData.user.my_referral_code,
-          sponsorCode: meData.user.sponsorCode || meData.user.sponsor_code,
-          networkEarnings: meData.user.networkEarnings ?? meData.user.network_earnings ?? 0,
-        }));
+        setUser((prev) => {
+          // Détection d'avancement de rang
+          if (prev.rank && meData.user.rank && prev.rank !== meData.user.rank && prev.email) {
+            setSelectedRankCelebration({
+              title: `Félicitations pour le rang ${meData.user.rank} ! 🎉`,
+              rankName: meData.user.rank,
+              benefits: 'Commissions réseau maximales et déblocage de nouvelles récompenses d\'équipe.',
+            });
+            setShowRankSuccessModal(true);
+          }
+          return {
+            ...prev,
+            ...meData.user,
+            myReferralCode: meData.user.myReferralCode || meData.user.my_referral_code,
+            sponsorCode: meData.user.sponsorCode || meData.user.sponsor_code,
+            networkEarnings: meData.user.networkEarnings ?? meData.user.network_earnings ?? 0,
+          };
+        });
 
         // Fetch User Transactions
         const txns = await api.deposits.getMyTransactions();
         if (Array.isArray(txns)) {
           setTransactions(txns);
+        }
+
+        // Fetch User Notifications from Backend
+        const notifRes = await api.notifications.get().catch(() => null);
+        if (notifRes && Array.isArray(notifRes.notifications)) {
+          setNotifications(
+            notifRes.notifications.map((n) => ({
+              id: n.id,
+              title: n.title,
+              message: n.message,
+              type: n.type === 'SUCCESS' ? 'success' : n.type === 'WARNING' ? 'warning' : 'info',
+              read: n.read_status === 1,
+              time: new Date(n.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            }))
+          );
         }
 
         // Fetch Network Tree
@@ -107,8 +133,10 @@ export const AppProvider = ({ children }) => {
     }
   }, []);
 
-  // Check auth session on load
+  // Check auth session on load & Setup periodic polling for real-time sync (Axe 2)
   useEffect(() => {
+    let interval = null;
+
     const initAuth = async () => {
       try {
         const meData = await api.auth.getMe();
@@ -133,7 +161,18 @@ export const AppProvider = ({ children }) => {
     };
 
     initAuth();
-  }, [refreshUserData]);
+
+    // Polling toutes les 10 secondes si authentifié
+    interval = setInterval(() => {
+      if (isAuthenticated) {
+        refreshUserData();
+      }
+    }, 10000);
+
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [refreshUserData, isAuthenticated]);
 
   // 1. Submit Manual Deposit (User Action)
   const submitManualDeposit = async ({ amount, providerId, senderNumber, txnId, dateTime }) => {
@@ -244,8 +283,11 @@ export const AppProvider = ({ children }) => {
     );
   };
 
-  const markNotificationsRead = () => {
+  const markNotificationsRead = async () => {
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    try {
+      await api.notifications.markAllAsRead();
+    } catch (e) {}
   };
 
   // Authentication Actions

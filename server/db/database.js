@@ -31,6 +31,9 @@ db.exec(`
     status TEXT NOT NULL DEFAULT 'INACTIF',
     rank TEXT NOT NULL DEFAULT 'Apprenti',
     balance REAL NOT NULL DEFAULT 0,
+    activation_balance REAL NOT NULL DEFAULT 0,
+    commission_balance REAL NOT NULL DEFAULT 0,
+    last_withdrawal_date DATETIME,
     network_earnings REAL NOT NULL DEFAULT 0,
     my_referral_code TEXT UNIQUE NOT NULL,
     sponsor_code TEXT,
@@ -78,13 +81,34 @@ db.exec(`
     revoked INTEGER NOT NULL DEFAULT 0,
     FOREIGN KEY (user_id) REFERENCES users(id)
   );
+
+  CREATE TABLE IF NOT EXISTS notifications (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    title TEXT NOT NULL,
+    message TEXT NOT NULL,
+    type TEXT NOT NULL DEFAULT 'INFO',
+    read_status INTEGER NOT NULL DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id)
+  );
 `);
 
 try {
   db.exec(`ALTER TABLE users ADD COLUMN avatar_url TEXT;`);
-} catch (e) {
-  // Column already exists
-}
+} catch (e) {}
+
+try {
+  db.exec(`ALTER TABLE users ADD COLUMN activation_balance REAL NOT NULL DEFAULT 0;`);
+} catch (e) {}
+
+try {
+  db.exec(`ALTER TABLE users ADD COLUMN commission_balance REAL NOT NULL DEFAULT 0;`);
+} catch (e) {}
+
+try {
+  db.exec(`ALTER TABLE users ADD COLUMN last_withdrawal_date DATETIME;`);
+} catch (e) {}
 
 // Seed default Admin & User if database is empty
 const checkUser = db.prepare('SELECT count(*) as count FROM users').get();

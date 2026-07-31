@@ -162,4 +162,32 @@ export const api = {
       return handleResponse(res);
     },
   },
+
+  // Chatbot API (Mistral AI)
+  chat: {
+    sendMessage: async (message, history = []) => {
+      const res = await fetch(`${API_BASE}/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message, history }),
+      });
+      return handleResponse(res);
+    },
+  },
+
+  // Notifications API
+  notifications: {
+    get: async () => {
+      const res = await fetch(`${API_BASE}/notifications`);
+      return handleResponse(res);
+    },
+    markAsRead: async (id) => {
+      const res = await fetch(`${API_BASE}/notifications/${id}/read`, { method: 'PATCH' });
+      return handleResponse(res);
+    },
+    markAllAsRead: async () => {
+      const res = await fetch(`${API_BASE}/notifications/read-all`, { method: 'POST' });
+      return handleResponse(res);
+    },
+  },
 };

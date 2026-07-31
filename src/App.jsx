@@ -5,10 +5,9 @@ import { BottomNav } from './components/BottomNav';
 import { Toast } from './components/Toast';
 import { ManualDepositModal } from './components/ManualDepositModal';
 import { WithdrawModal } from './components/WithdrawModal';
-import { AdminDrawer } from './components/AdminDrawer';
 import { RankSuccessModal } from './components/RankSuccessModal';
 import { InactivityTimer } from './components/InactivityTimer';
-
+import { ChatbotWidget } from './components/ChatbotWidget';
 
 import { DashboardView } from './views/DashboardView';
 import { NetworkView } from './views/NetworkView';
@@ -17,21 +16,32 @@ import { RanksView } from './views/RanksView';
 import { HistoryView } from './views/HistoryView';
 import { ProfileView } from './views/ProfileView';
 import { AuthView } from './views/AuthView';
+import { AdminView } from './views/AdminView';
 
 const MainApp = () => {
-  const { activeTab, isAuthenticated } = useApp();
+  const { activeTab, isAuthenticated, isAdminMode, user } = useApp();
 
   if (!isAuthenticated) {
     return (
       <>
         <AuthView />
+        <ChatbotWidget />
+        <Toast />
+      </>
+    );
+  }
+
+  // Écran Administrateur Autonome (Séparé de l'interface membre)
+  if (isAdminMode || user.role === 'ADMIN') {
+    return (
+      <>
+        <AdminView />
         <Toast />
       </>
     );
   }
 
   return (
-
     <div className="min-h-screen bg-[#101416] text-[#e0e3e6] flex flex-col font-sans max-w-md mx-auto relative border-x border-white/5 shadow-2xl">
       {/* Top Header */}
       <Header />
@@ -49,17 +59,18 @@ const MainApp = () => {
       {/* Glassmorphic Bottom Bar */}
       <BottomNav />
 
+      {/* Chatbot Assistant */}
+      <ChatbotWidget />
+
       {/* Modals & Overlays */}
       <ManualDepositModal />
       <WithdrawModal />
-      <AdminDrawer />
       <RankSuccessModal />
       <InactivityTimer />
       <Toast />
     </div>
   );
 };
-
 
 export default function App() {
   return (

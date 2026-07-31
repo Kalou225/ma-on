@@ -9,6 +9,8 @@ import depositRoutes from './routes/depositRoutes.js';
 import withdrawalRoutes from './routes/withdrawalRoutes.js';
 import networkRoutes from './routes/networkRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
+import chatRoutes from './routes/chatRoutes.js';
+import notificationRoutes from './routes/notificationRoutes.js';
 import { logger } from './services/auditLogger.js';
 
 const app = express();
@@ -30,6 +32,8 @@ app.use('/api/deposits', depositRoutes);
 app.use('/api/withdrawals', withdrawalRoutes);
 app.use('/api/network', networkRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/chat', chatRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {

@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { User, Shield, Smartphone, Key, LogOut, Check, Copy, ChevronRight, Camera, Upload } from 'lucide-react';
+import { User, Shield, Smartphone, Key, LogOut, Check, Copy, ChevronRight, Camera, Upload, Mail } from 'lucide-react';
 
 export const ProfileView = () => {
   const { user, isAdminMode, setIsAdminMode, showToastNotification, logout, updateAvatar } = useApp();
@@ -139,28 +139,51 @@ export const ProfileView = () => {
         </button>
       </div>
 
-      {/* Admin Test Mode Banner Toggle */}
-      <div className="p-4 rounded-3xl bg-[#E63946]/10 border border-[#E63946]/30 flex items-center justify-between">
+      {/* Official Support Email Banner */}
+      <div className="p-4 rounded-3xl bg-[#191c1e] border border-[#F2CA50]/30 flex items-center justify-between">
         <div className="space-y-0.5">
-          <div className="flex items-center space-x-2 text-[#E63946]">
-            <Shield className="w-4 h-4" />
-            <h3 className="text-xs font-bold">Simulateur Mode Administration</h3>
+          <div className="flex items-center space-x-2 text-[#F2CA50]">
+            <Mail className="w-4 h-4" />
+            <h3 className="text-xs font-bold">Support Client Officiel</h3>
           </div>
           <p className="text-[11px] text-[#d0c5af]">
-            Permet de valider ou rejeter vos dépôts manuels en direct pour le test.
+            Envoyez-nous vos requêtes directement par email :
           </p>
+          <a
+            href="mailto:ecoilluminati@gmail.com"
+            className="text-xs font-mono font-bold text-[#F2CA50] hover:underline block pt-0.5"
+          >
+            ecoilluminati@gmail.com
+          </a>
         </div>
-        <button
-          onClick={() => setIsAdminMode(!isAdminMode)}
-          className={`px-3 py-2 rounded-xl text-xs font-bold shrink-0 transition-all ${
-            isAdminMode
-              ? 'bg-[#E63946] text-white animate-pulse'
-              : 'bg-[#1d2022] text-[#F2CA50] border border-[#d4af37]/30'
-          }`}
+        <a
+          href="mailto:ecoilluminati@gmail.com"
+          className="px-3 py-2 rounded-xl text-xs font-bold bg-[#F2CA50] text-black hover:brightness-110 shrink-0"
         >
-          {isAdminMode ? 'Mode Admin Actif' : 'Activer Admin'}
-        </button>
+          Écrire
+        </a>
       </div>
+
+      {/* Accès Console Admin si le compte est ADMIN */}
+      {user.role === 'ADMIN' && (
+        <div className="p-4 rounded-3xl bg-[#E63946]/10 border border-[#E63946]/30 flex items-center justify-between">
+          <div className="space-y-0.5">
+            <div className="flex items-center space-x-2 text-[#E63946]">
+              <Shield className="w-4 h-4" />
+              <h3 className="text-xs font-bold">Console Administrateur</h3>
+            </div>
+            <p className="text-[11px] text-[#d0c5af]">
+              Accéder au portail d'administration autonome Back-Office.
+            </p>
+          </div>
+          <button
+            onClick={() => setIsAdminMode(true)}
+            className="px-3 py-2 rounded-xl text-xs font-bold bg-[#E63946] text-white shrink-0 hover:brightness-110 shadow-md"
+          >
+            Ouvrir Admin
+          </button>
+        </div>
+      )}
 
       {/* Account Settings List & Logout */}
       <div className="p-4 rounded-3xl bg-[#1d2022] border border-white/5 space-y-1 text-xs">

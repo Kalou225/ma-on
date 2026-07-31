@@ -1,55 +1,27 @@
 import React from 'react';
 import { useApp } from '../context/AppContext';
-import { Award, Check, Sparkles, ChevronRight, Lock, Trophy } from 'lucide-react';
+import { Award, Sparkles, Trophy } from 'lucide-react';
 
 export const RanksView = () => {
   const { user, setShowRankSuccessModal, setSelectedRankCelebration } = useApp();
 
   const ranks = [
-    {
-      name: 'Apprenti',
-      badgeColor: 'border-slate-500 text-slate-300 bg-slate-500/10',
-      volumeRequired: 250000,
-      referralsRequired: 2,
-      bonus: 25000,
-      rate: '5%',
-      levels: 1,
-      achieved: true,
-    },
-    {
-      name: 'Compagnon',
-      badgeColor: 'border-[#F2CA50] text-[#F2CA50] bg-[#F2CA50]/10',
-      volumeRequired: 1000000,
-      referralsRequired: 5,
-      bonus: 100000,
-      rate: '10%',
-      levels: 2,
-      achieved: true, // Current active rank
-    },
-    {
-      name: 'Maître',
-      badgeColor: 'border-[#10B981] text-[#10B981] bg-[#10B981]/10',
-      volumeRequired: 5000000,
-      referralsRequired: 10,
-      bonus: 500000,
-      rate: '15%',
-      levels: 3,
-      achieved: false,
-    },
-    {
-      name: 'Grand Maître',
-      badgeColor: 'border-purple-500 text-purple-300 bg-purple-500/10',
-      volumeRequired: 25000000,
-      referralsRequired: 25,
-      bonus: 2500000,
-      rate: '20%',
-      levels: 5,
-      achieved: false,
-    },
+    { name: 'Apprenti', min: '1 000', max: '200 000', rate: '2%', badgeColor: 'border-slate-500 text-slate-300 bg-slate-500/10' },
+    { name: 'Compagnon Niveau 3', min: '201 000', max: '400 000', rate: '3%', badgeColor: 'border-[#F2CA50] text-[#F2CA50] bg-[#F2CA50]/10' },
+    { name: 'Compagnon Niveau 2', min: '401 000', max: '600 000', rate: '4%', badgeColor: 'border-[#F2CA50] text-[#F2CA50] bg-[#F2CA50]/10' },
+    { name: 'Compagnon Niveau 1', min: '601 000', max: '800 000', rate: '5%', badgeColor: 'border-[#F2CA50] text-[#F2CA50] bg-[#F2CA50]/10' },
+    { name: 'Maître Niveau 3', min: '801 000', max: '1 000 000', rate: '6%', badgeColor: 'border-[#10B981] text-[#10B981] bg-[#10B981]/10' },
+    { name: 'Maître Niveau 2', min: '1 001 000', max: '5 000 000', rate: '7%', badgeColor: 'border-[#10B981] text-[#10B981] bg-[#10B981]/10' },
+    { name: 'Maître Niveau 1', min: '5 001 000', max: '19 999 999', rate: '8%', badgeColor: 'border-[#10B981] text-[#10B981] bg-[#10B981]/10' },
+    { name: 'Grand Maître', min: '20 000 000', max: 'et +', rate: '20%', badgeColor: 'border-purple-500 text-purple-300 bg-purple-500/10' },
   ];
 
   const handleTestCelebration = (rankItem) => {
-    setSelectedRankCelebration(rankItem);
+    setSelectedRankCelebration({
+      title: `Félicitations pour le rang ${rankItem.name} ! 🎉`,
+      rankName: rankItem.name,
+      benefits: `Taux de commission réseau de ${rankItem.rate} activé sur l'ensemble de votre branche directe.`,
+    });
     setShowRankSuccessModal(true);
   };
 
@@ -75,21 +47,18 @@ export const RanksView = () => {
           </div>
 
           <span className="text-xs font-bold text-[#10B981] bg-[#10B981]/15 px-3 py-1 rounded-full border border-[#10B981]/30">
-            Niveau 2 Débloqué
+            {user.status}
           </span>
         </div>
 
-        {/* Progress bar to next rank (Maître) */}
-        <div className="space-y-1.5 pt-2 border-t border-white/10">
-          <div className="flex justify-between text-xs">
-            <span className="text-[#99907c]">Progression vers <strong>Maître</strong></span>
-            <span className="font-mono font-bold text-[#F2CA50]">37%</span>
-          </div>
-          <div className="w-full h-2.5 bg-[#101416] rounded-full overflow-hidden border border-white/5">
-            <div className="h-full gold-gradient-bg rounded-full w-[37%] transition-all duration-500" />
+        {/* Solde d'Activation Stats */}
+        <div className="space-y-1 pt-2 border-t border-white/10 text-xs">
+          <div className="flex justify-between">
+            <span className="text-[#99907c]">Solde d'activation cumulé :</span>
+            <strong className="text-white font-mono">{(user.activationBalance || 0).toLocaleString()} FCFA</strong>
           </div>
           <p className="text-[10px] text-[#99907c]">
-            Volume équipe actuel : {user.teamVolume.toLocaleString()} / 5 000 000 FCFA
+            Le rang est attribué automatiquement selon le solde d'activation du compte.
           </p>
         </div>
       </div>
@@ -97,66 +66,55 @@ export const RanksView = () => {
       {/* Ranks Ladder List */}
       <div className="space-y-3">
         <h3 className="text-xs font-bold text-white uppercase tracking-wider">
-          Échelle des Rangs & Avantages MLM
+          Grille des 8 Rangs & Plages d'Activation
         </h3>
 
-        <div className="space-y-3">
-          {ranks.map((r) => (
-            <div
-              key={r.name}
-              className={`p-4 rounded-3xl border transition-all ${
-                user.rank === r.name
-                  ? 'bg-[#1d2022] border-[#F2CA50] shadow-[0_0_20px_rgba(242,202,80,0.15)]'
-                  : r.achieved
-                  ? 'bg-[#1d2022] border-white/10 opacity-90'
-                  : 'bg-[#191c1e] border-white/5 opacity-75'
-              }`}
-            >
-              <div className="flex items-center justify-between pb-3 border-b border-white/5">
-                <div className="flex items-center space-x-2.5">
-                  <div className={`p-2 rounded-xl border text-xs font-bold ${r.badgeColor}`}>
-                    <Award className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <div className="flex items-center space-x-2">
-                      <h4 className="text-sm font-bold text-white">{r.name}</h4>
-                      {user.rank === r.name && (
-                        <span className="text-[9px] font-bold uppercase px-2 py-0.5 rounded bg-[#F2CA50] text-black">
-                          Actuel
-                        </span>
-                      )}
+        <div className="space-y-2.5">
+          {ranks.map((r) => {
+            const isCurrent = user.rank === r.name;
+            return (
+              <div
+                key={r.name}
+                className={`p-3.5 rounded-2xl border transition-all ${
+                  isCurrent
+                    ? 'bg-[#1d2022] border-[#F2CA50] shadow-[0_0_15px_rgba(242,202,80,0.15)]'
+                    : 'bg-[#191c1e] border-white/5 opacity-85'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <div className={`p-2 rounded-xl border text-xs font-bold ${r.badgeColor}`}>
+                      <Award className="w-4 h-4" />
                     </div>
-                    <p className="text-[11px] text-[#99907c]">Bonus de grade : +{r.bonus.toLocaleString()} FCFA</p>
+                    <div>
+                      <div className="flex items-center space-x-2">
+                        <h4 className="text-xs font-bold text-white">{r.name}</h4>
+                        {isCurrent && (
+                          <span className="text-[9px] font-bold uppercase px-2 py-0.5 rounded bg-[#F2CA50] text-black">
+                            Rang Actuel
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-[#99907c]">
+                        Solde activation : <strong className="text-white font-mono">{r.min} – {r.max} FCFA</strong>
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="text-right shrink-0">
+                    <span className="text-xs font-mono font-bold text-[#F2CA50] block">{r.rate}</span>
+                    <button
+                      onClick={() => handleTestCelebration(r)}
+                      className="text-[9px] text-[#99907c] hover:text-white flex items-center space-x-0.5 mt-0.5"
+                    >
+                      <Sparkles className="w-2.5 h-2.5" />
+                      <span>Aperçu</span>
+                    </button>
                   </div>
                 </div>
-
-                <div className="text-right">
-                  <span className="text-xs font-mono font-bold text-[#F2CA50]">{r.rate}</span>
-                  <span className="text-[10px] text-[#99907c] block">Commission</span>
-                </div>
               </div>
-
-              {/* Requirements & Action */}
-              <div className="pt-3 flex items-center justify-between text-xs">
-                <div className="space-y-0.5">
-                  <p className="text-[#d0c5af]">
-                    🎯 Volume requis : <strong className="text-white font-mono">{r.volumeRequired.toLocaleString()} FCFA</strong>
-                  </p>
-                  <p className="text-[#99907c] text-[11px]">
-                    👥 Filleuls directs minimum : <strong>{r.referralsRequired}</strong>
-                  </p>
-                </div>
-
-                <button
-                  onClick={() => handleTestCelebration(r)}
-                  className="px-3 py-1.5 rounded-xl bg-[#272a2d] hover:bg-[#323538] text-[#F2CA50] text-[11px] font-bold border border-[#d4af37]/30 flex items-center space-x-1"
-                >
-                  <Sparkles className="w-3 h-3" />
-                  <span>Tester Célébration</span>
-                </button>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </div>

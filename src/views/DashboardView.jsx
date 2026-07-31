@@ -14,46 +14,67 @@ export const DashboardView = () => {
 
   return (
     <div className="space-y-4 pb-6 animate-in fade-in">
-      {/* Account Activation Banner if Inactive */}
-      {user.status === 'INACTIF' && (
-        <div className="p-4 rounded-3xl bg-[#E63946]/10 border border-[#E63946]/30 space-y-2 shadow-lg">
-          <div className="flex items-center space-x-2 text-[#E63946]">
+      {/* Account Activation Banner if Inactive (Orange) */}
+      {(user.status === 'INACTIF' || (user.activationBalance || 0) <= 0) && (
+        <div className="p-4 rounded-3xl bg-[#F2CA50]/10 border border-[#F2CA50]/30 space-y-2 shadow-lg">
+          <div className="flex items-center space-x-2 text-[#F2CA50]">
             <ShieldAlert className="w-5 h-5 shrink-0" />
-            <span className="font-bold text-xs uppercase tracking-wide">Compte Non Enregistré / Inactif</span>
+            <span className="font-bold text-xs uppercase tracking-wide">Compte Inactif • Premier Dépôt Requis</span>
           </div>
           <p className="text-xs text-[#d0c5af]">
-            Veuillez effectuer un dépôt manuel d'activation (minimum 25 000 FCFA) vers un numéro mobile money officiel de l'administrateur.
+            Vos commissions parrainage s'accumulent bien sur votre <strong>Solde Commission</strong>. Cependant, vous devez effectuer votre <strong>1er dépôt d'activation</strong> pour débloquer les retraits et recevoir votre rang officiel.
           </p>
           <button
             onClick={() => setShowDepositModal(true)}
-            className="w-full py-2.5 rounded-xl bg-[#E63946] text-white font-bold text-xs flex items-center justify-center space-x-2 hover:brightness-110 active:scale-95 transition-all shadow-md"
+            className="w-full py-2.5 rounded-xl bg-[#F2CA50] text-black font-bold text-xs flex items-center justify-center space-x-2 hover:brightness-110 active:scale-95 transition-all shadow-md"
           >
             <PhoneCall className="w-4 h-4" />
-            <span>Faire le Dépôt Manuel d'Activation</span>
+            <span>Faire le Premier Dépôt d'Activation</span>
           </button>
         </div>
       )}
 
-      {/* Main Balance Financial Card */}
+      {/* Main Balances Financial Card */}
       <div className="p-5 rounded-3xl glass-card gold-border relative overflow-hidden space-y-4 shadow-2xl">
         <div className="absolute -right-8 -bottom-8 w-36 h-36 bg-[#F2CA50]/10 rounded-full blur-2xl pointer-events-none" />
 
         <div className="flex items-center justify-between">
           <span className="text-xs font-semibold uppercase tracking-wider text-[#99907c]">
-            Solde Total Disponible
+            Synthèse Financière
           </span>
           <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-[#F2CA50]/15 text-[#F2CA50] border border-[#F2CA50]/30">
             {user.rank}
           </span>
         </div>
 
-        <div>
-          <div className="text-3xl font-extrabold font-mono text-white tracking-tight gold-gradient-text">
-            {user.balance.toLocaleString()} <span className="text-sm font-sans font-normal text-[#d0c5af]">FCFA</span>
+        {/* Dual Balances Grid */}
+        <div className="grid grid-cols-2 gap-3 pt-1">
+          {/* Solde d'Activation (Non Retirable) */}
+          <div className="p-3 rounded-2xl bg-[#101416]/80 border border-white/10 space-y-1">
+            <span className="text-[10px] text-[#99907c] uppercase tracking-wider block font-semibold">
+              Solde d'Activation
+            </span>
+            <p className="text-lg font-extrabold font-mono text-white">
+              {(user.activationBalance || 0).toLocaleString()} <span className="text-[10px] text-[#d0c5af]">FCFA</span>
+            </p>
+            <span className="text-[9px] text-[#E63946] font-semibold block">🔒 Non retirable</span>
           </div>
-          <p className="text-[11px] text-[#99907c] mt-1">
-            Gains cumulés du réseau : <strong className="text-[#10B981] font-mono">+{user.networkEarnings.toLocaleString()} FCFA</strong>
-          </p>
+
+          {/* Solde Commission (Retirable) */}
+          <div className="p-3 rounded-2xl bg-[#101416]/80 border border-[#F2CA50]/30 space-y-1">
+            <span className="text-[10px] text-[#F2CA50] uppercase tracking-wider block font-semibold">
+              Solde Commission
+            </span>
+            <p className="text-lg font-extrabold font-mono text-[#F2CA50]">
+              {(user.commissionBalance || user.balance || 0).toLocaleString()} <span className="text-[10px] text-[#d0c5af]">FCFA</span>
+            </p>
+            <span className="text-[9px] text-[#10B981] font-semibold block">💸 Seul solde retirable</span>
+          </div>
+        </div>
+
+        <div className="text-[11px] text-[#99907c] flex items-center justify-between pt-1">
+          <span>Plafond de retrait autorisé (1/3) :</span>
+          <strong className="text-white font-mono">{Math.floor((user.activationBalance || 0) / 3).toLocaleString()} FCFA</strong>
         </div>
 
         {/* Action Buttons Row */}
@@ -63,7 +84,7 @@ export const DashboardView = () => {
             className="py-3 px-3 rounded-2xl gold-gradient-bg text-black font-bold text-xs flex items-center justify-center space-x-2 shadow-lg hover:brightness-110 active:scale-95 transition-all"
           >
             <ArrowDownRight className="w-4 h-4" />
-            <span>Dépôt Manuel</span>
+            <span>Dépôt / Activation</span>
           </button>
 
           <button

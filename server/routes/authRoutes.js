@@ -113,7 +113,11 @@ router.post('/login', strictAuthRateLimiter, validateRequest(loginSchema), (req,
       role: user.role,
       status: user.status,
       rank: user.rank,
-      balance: user.balance,
+      balance: user.commission_balance || 0,
+      activationBalance: user.activation_balance || 0,
+      commissionBalance: user.commission_balance || 0,
+      maxWithdrawableAmount: Math.floor((user.activation_balance || 0) / 3),
+      lastWithdrawalDate: user.last_withdrawal_date,
       myReferralCode: user.my_referral_code,
       avatarUrl: user.avatar_url,
     },
@@ -135,8 +139,8 @@ router.post('/signup', validateRequest(signupSchema), (req, res) => {
   const passwordHash = bcrypt.hashSync(password, config.saltRounds);
 
   db.prepare(`
-    INSERT INTO users (id, name, email, phone, password_hash, role, status, rank, balance, my_referral_code, sponsor_code)
-    VALUES (?, ?, ?, ?, ?, 'MEMBRE', 'INACTIF', 'Apprenti', 0, ?, ?)
+    INSERT INTO users (id, name, email, phone, password_hash, role, status, rank, balance, activation_balance, commission_balance, my_referral_code, sponsor_code)
+    VALUES (?, ?, ?, ?, ?, 'MEMBRE', 'INACTIF', 'Apprenti', 0, 0, 0, ?, ?)
   `).run(userId, name, email, phone, passwordHash, referralCode, sponsorCode || 'ILL-88392');
 
   const { accessToken } = issueTokens(res, userId, 'MEMBRE');
@@ -144,7 +148,20 @@ router.post('/signup', validateRequest(signupSchema), (req, res) => {
 
   res.status(201).json({
     message: 'Compte créé avec succès. Dépôt manuel requis pour activation.',
-    user: { id: userId, name, email, phone, role: 'MEMBRE', status: 'INACTIF', rank: 'Apprenti', balance: 0, myReferralCode: referralCode },
+    user: {
+      id: userId,
+      name,
+      email,
+      phone,
+      role: 'MEMBRE',
+      status: 'INACTIF',
+      rank: 'Apprenti',
+      balance: 0,
+      activationBalance: 0,
+      commissionBalance: 0,
+      maxWithdrawableAmount: 0,
+      myReferralCode: referralCode,
+    },
     accessToken,
   });
 });
@@ -158,10 +175,14 @@ router.post('/logout', (req, res) => {
 
 // 3b. ME (GET CURRENT LOGGED IN USER)
 router.get('/me', authenticateToken, (req, res) => {
-  const user = db.prepare('SELECT id, name, email, phone, role, status, rank, balance, network_earnings, my_referral_code, sponsor_code, mfa_enabled, avatar_url FROM users WHERE id = ?').get(req.user.id);
+  const user = db.prepare('SELECT id, name, email, phone, role, status, rank, balance, activation_balance, commission_balance, last_withdrawal_date, network_earnings, my_referral_code, sponsor_code, mfa_enabled, avatar_url FROM users WHERE id = ?').get(req.user.id);
   if (!user) {
     return res.status(404).json({ error: 'Utilisateur non trouvé' });
   }
+
+  const actBal = user.activation_balance || 0;
+  const commBal = user.commission_balance || 0;
+
   res.json({
     user: {
       id: user.id,
@@ -171,7 +192,11 @@ router.get('/me', authenticateToken, (req, res) => {
       role: user.role,
       status: user.status,
       rank: user.rank,
-      balance: user.balance,
+      balance: commBal,
+      activationBalance: actBal,
+      commissionBalance: commBal,
+      maxWithdrawableAmount: Math.floor(actBal / 3),
+      lastWithdrawalDate: user.last_withdrawal_date,
       networkEarnings: user.network_earnings,
       myReferralCode: user.my_referral_code,
       sponsorCode: user.sponsor_code,

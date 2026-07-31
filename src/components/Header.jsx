@@ -39,26 +39,24 @@ export const Header = () => {
 
         {/* Right Actions */}
         <div className="flex items-center space-x-2">
-          {/* Admin Toggle Simulator Button */}
-          <button
-            onClick={() => setIsAdminMode(!isAdminMode)}
-            className={`px-2 py-1.5 rounded-xl text-xs font-semibold flex items-center space-x-1 transition-all ${
-              isAdminMode
-                ? 'bg-[#E63946] text-white animate-pulse shadow-lg'
-                : 'bg-[#1d2022] hover:bg-[#272a2d] text-[#F2CA50] border border-[#d4af37]/30'
-            }`}
-            title="Basculer en Mode Administrateur pour valider les dépôts et retraits"
-          >
-            <Smartphone className="w-3.5 h-3.5" />
-            <span>{isAdminMode ? 'Admin' : 'Admin'}</span>
-          </button>
+          {/* Admin Switcher Button (uniquement si rôle ADMIN) */}
+          {user.role === 'ADMIN' && (
+            <button
+              onClick={() => setIsAdminMode(true)}
+              className="px-2.5 py-1 rounded-xl text-[11px] font-bold bg-[#E63946] text-white flex items-center space-x-1 hover:brightness-110 shadow-md"
+              title="Basculer vers la Console d'Administration"
+            >
+              <ShieldCheck className="w-3.5 h-3.5" />
+              <span>Admin</span>
+            </button>
+          )}
 
           {/* Account Status Badge */}
           <div
             className={`flex items-center space-x-1 text-[11px] font-medium px-2 py-1 rounded-full border ${
               user.status === 'ACTIF'
                 ? 'bg-[#10B981]/10 text-[#10B981] border-[#10B981]/30'
-                : 'bg-[#E63946]/10 text-[#E63946] border-[#E63946]/30'
+                : 'bg-[#F2CA50]/15 text-[#F2CA50] border-[#F2CA50]/40'
             }`}
           >
             {user.status === 'ACTIF' ? (
@@ -68,8 +66,8 @@ export const Header = () => {
               </>
             ) : (
               <>
-                <ShieldAlert className="w-3 h-3" />
-                <span>Inactif</span>
+                <ShieldAlert className="w-3 h-3 text-[#F2CA50]" />
+                <span className="text-[#F2CA50] font-bold">Inactif</span>
               </>
             )}
           </div>
