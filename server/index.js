@@ -82,6 +82,6 @@ app.use((err, req, res, next) => {
   });
 });
 
-app.listen(config.port, () => {
-  logger.info(`🛡️ Serveur Backend Sécurisé OWASP démarré sur http://localhost:${config.port}`);
+app.listen(config.port, '0.0.0.0', () => {
+  logger.info(`🛡️ Serveur Backend Sécurisé OWASP démarré sur http://0.0.0.0:${config.port}`);
 });
