@@ -22,3 +22,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+server/.env
+server/data/*.db-shm
+server/data/*.db-wal
+server/logs/*

@@ -35,15 +35,43 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/notifications', notificationRoutes);
 
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 // Health check endpoint
 app.get('/api/health', (req, res) => {
   res.json({ status: 'UP', security: 'OWASP_TOP_10_ENFORCED', timestamp: new Date().toISOString() });
 });
 
-// 404 Handler
-app.use((req, res) => {
-  res.status(404).json({ error: 'Ressource introuvable' });
-});
+// Locate dist/ directory across common deployment paths
+const possibleDistPaths = [
+  path.join(__dirname, '../dist'),
+  path.join(__dirname, 'dist'),
+  path.join(process.cwd(), 'dist'),
+  path.join(process.cwd(), '../dist'),
+];
+
+const distPath = possibleDistPaths.find((p) => fs.existsSync(p));
+
+if (distPath) {
+  logger.info(`📦 Frontend React dist/ détecté et actif depuis : ${distPath}`);
+  app.use(express.static(distPath));
+
+  // SPA Fallback for client routes
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api')) return next();
+    res.sendFile(path.join(distPath, 'index.html'));
+  });
+} else {
+  logger.warn('⚠️ Aucun dossier dist/ n\'a été détecté. Le serveur tourne en mode API uniquement.');
+  app.use((req, res) => {
+    res.status(404).json({ error: 'Ressource introuvable (Dossier dist/ non détecté)' });
+  });
+}
 
 // Global Error Handler (Sanitizes Error Stack in Production)
 app.use((err, req, res, next) => {
