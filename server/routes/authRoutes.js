@@ -45,14 +45,14 @@ const issueTokens = (res, userId, role) => {
   res.cookie('accessToken', accessToken, {
     httpOnly: true,
     secure: config.nodeEnv === 'production',
-    sameSite: 'strict',
+    sameSite: 'lax',
     maxAge: 15 * 60 * 1000, // 15 mins
   });
 
   res.cookie('refreshToken', refreshToken, {
     httpOnly: true,
     secure: config.nodeEnv === 'production',
-    sameSite: 'strict',
+    sameSite: 'lax',
     maxAge: config.refreshTokenExpiryDays * 24 * 60 * 60 * 1000,
   });
 
@@ -62,10 +62,11 @@ const issueTokens = (res, userId, role) => {
 // 1. LOGIN
 router.post('/login', strictAuthRateLimiter, validateRequest(loginSchema), (req, res) => {
   const { email, password, mfaToken } = req.validated.body;
+  const cleanEmail = email.trim().toLowerCase();
 
-  const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
+  const user = db.prepare('SELECT * FROM users WHERE LOWER(email) = ?').get(cleanEmail);
   if (!user) {
-    logSecurityEvent('LOGIN_FAILED_UNKNOWN_USER', { ip: req.ip, details: { email }, severity: 'WARNING' });
+    logSecurityEvent('LOGIN_FAILED_UNKNOWN_USER', { ip: req.ip, details: { email: cleanEmail }, severity: 'WARNING' });
     return res.status(401).json({ error: 'Identifiants ou mot de passe incorrects.' });
   }
 
@@ -128,8 +129,12 @@ router.post('/login', strictAuthRateLimiter, validateRequest(loginSchema), (req,
 // 2. SIGNUP
 router.post('/signup', validateRequest(signupSchema), (req, res) => {
   const { name, email, phone, password, sponsorCode } = req.validated.body;
+  const cleanName = name.trim();
+  const cleanEmail = email.trim().toLowerCase();
+  const cleanPhone = phone.trim();
+  const cleanSponsor = sponsorCode ? sponsorCode.trim().toUpperCase() : 'ILL-88392';
 
-  const existingUser = db.prepare('SELECT id FROM users WHERE email = ?').get(email);
+  const existingUser = db.prepare('SELECT id FROM users WHERE LOWER(email) = ?').get(cleanEmail);
   if (existingUser) {
     return res.status(400).json({ error: 'Un compte existe déjà avec cette adresse email.' });
   }
@@ -141,7 +146,7 @@ router.post('/signup', validateRequest(signupSchema), (req, res) => {
   db.prepare(`
     INSERT INTO users (id, name, email, phone, password_hash, role, status, rank, balance, activation_balance, commission_balance, my_referral_code, sponsor_code)
     VALUES (?, ?, ?, ?, ?, 'MEMBRE', 'INACTIF', 'Apprenti', 0, 0, 0, ?, ?)
-  `).run(userId, name, email, phone, passwordHash, referralCode, sponsorCode || 'ILL-88392');
+  `).run(userId, cleanName, cleanEmail, cleanPhone, passwordHash, referralCode, cleanSponsor);
 
   const { accessToken } = issueTokens(res, userId, 'MEMBRE');
   logSecurityEvent('USER_REGISTERED', { userId, ip: req.ip });
@@ -150,9 +155,9 @@ router.post('/signup', validateRequest(signupSchema), (req, res) => {
     message: 'Compte créé avec succès. Dépôt manuel requis pour activation.',
     user: {
       id: userId,
-      name,
-      email,
-      phone,
+      name: cleanName,
+      email: cleanEmail,
+      phone: cleanPhone,
       role: 'MEMBRE',
       status: 'INACTIF',
       rank: 'Apprenti',
@@ -165,6 +170,7 @@ router.post('/signup', validateRequest(signupSchema), (req, res) => {
     accessToken,
   });
 });
+
 
 // 3. LOGOUT
 router.post('/logout', (req, res) => {

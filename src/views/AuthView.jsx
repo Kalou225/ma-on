@@ -19,26 +19,42 @@ export const AuthView = () => {
   const [signupPhone, setSignupPhone] = useState('');
   const [signupSponsor, setSignupSponsor] = useState('ILL-88392');
   const [signupPassword, setSignupPassword] = useState('');
+  const [authError, setAuthError] = useState('');
 
   const handleLoginSubmit = async (e) => {
     e.preventDefault();
+    setAuthError('');
     setIsSubmitting(true);
-    await login(loginIdentifier, loginPassword);
+    const success = await login(loginIdentifier.trim(), loginPassword);
+    if (!success) {
+      setAuthError('Échec de connexion. Vérifiez vos identifiants.');
+    }
     setIsSubmitting(false);
   };
 
   const handleSignupSubmit = async (e) => {
     e.preventDefault();
+    setAuthError('');
+
+    if (signupPassword.length < 8) {
+      setAuthError('Le mot de passe doit comporter au moins 8 caractères.');
+      return;
+    }
+
     setIsSubmitting(true);
-    await signup({
-      name: signupName,
-      email: signupEmail,
-      phone: signupPhone,
-      sponsorCode: signupSponsor,
+    const success = await signup({
+      name: signupName.trim(),
+      email: signupEmail.trim().toLowerCase(),
+      phone: signupPhone.trim(),
+      sponsorCode: signupSponsor.trim(),
       password: signupPassword,
     });
+    if (!success) {
+      setAuthError('Impossible de créer le compte. Vérifiez que l\'email n\'est pas déjà utilisé.');
+    }
     setIsSubmitting(false);
   };
+
 
   return (
     <div className="min-h-screen bg-[#101416] text-[#e0e3e6] flex flex-col justify-between p-6 max-w-md mx-auto relative overflow-hidden">
@@ -93,6 +109,13 @@ export const AuthView = () => {
 
       {/* Main Form Body */}
       <div className="z-10 my-auto py-4">
+        {authError && (
+          <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-xs flex items-center gap-2 animate-in fade-in">
+            <ShieldAlert className="w-4 h-4 flex-shrink-0 text-red-400" />
+            <span>{authError}</span>
+          </div>
+        )}
+
         {mode === 'login' ? (
           <form onSubmit={handleLoginSubmit} className="space-y-4 animate-in fade-in slide-in-from-bottom-2">
             <div>

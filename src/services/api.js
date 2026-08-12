@@ -2,7 +2,24 @@
 
 const API_BASE = '/api';
 
-const handleResponse = async (response) => {
+const customFetch = async (endpoint, options = {}) => {
+  const token = localStorage.getItem('accessToken');
+  
+  const headers = {
+    'Content-Type': 'application/json',
+    ...(options.headers || {}),
+  };
+
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  const response = await fetch(`${API_BASE}${endpoint}`, {
+    ...options,
+    headers,
+    credentials: 'include', // Essential for PWA mobile cookies & session persistence
+  });
+
   const contentType = response.headers.get('content-type');
   let data = {};
   if (contentType && contentType.includes('application/json')) {
@@ -24,170 +41,150 @@ export const api = {
   // Auth API
   auth: {
     login: async (email, password, mfaToken) => {
-      const res = await fetch(`${API_BASE}/auth/login`, {
+      const data = await customFetch('/auth/login', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password, mfaToken }),
       });
-      return handleResponse(res);
+      if (data.accessToken) {
+        localStorage.setItem('accessToken', data.accessToken);
+      }
+      return data;
     },
 
     signup: async ({ name, email, phone, password, sponsorCode }) => {
-      const res = await fetch(`${API_BASE}/auth/signup`, {
+      const data = await customFetch('/auth/signup', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, email, phone, password, sponsorCode }),
       });
-      return handleResponse(res);
+      if (data.accessToken) {
+        localStorage.setItem('accessToken', data.accessToken);
+      }
+      return data;
     },
 
     logout: async () => {
-      const res = await fetch(`${API_BASE}/auth/logout`, { method: 'POST' });
-      return handleResponse(res);
+      try {
+        await customFetch('/auth/logout', { method: 'POST' });
+      } catch (e) {}
+      localStorage.removeItem('accessToken');
+      return { message: 'Déconnecté' };
     },
 
     getMe: async () => {
-      const res = await fetch(`${API_BASE}/auth/me`);
-      return handleResponse(res);
+      return customFetch('/auth/me');
     },
 
     updateAvatar: async (avatarUrl) => {
-      const res = await fetch(`${API_BASE}/auth/update-avatar`, {
+      return customFetch('/auth/update-avatar', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ avatarUrl }),
       });
-      return handleResponse(res);
     },
   },
 
   // Deposits API
   deposits: {
     getPaymentNumbers: async () => {
-      const res = await fetch(`${API_BASE}/deposits/payment-numbers`);
-      return handleResponse(res);
+      return customFetch('/deposits/payment-numbers');
     },
 
     submit: async (depositData) => {
-      const res = await fetch(`${API_BASE}/deposits/submit`, {
+      return customFetch('/deposits/submit', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(depositData),
       });
-      return handleResponse(res);
     },
 
     getMyTransactions: async () => {
-      const res = await fetch(`${API_BASE}/deposits/my-transactions`);
-      return handleResponse(res);
+      return customFetch('/deposits/my-transactions');
     },
   },
 
   // Withdrawals API
   withdrawals: {
     request: async ({ amount, provider, recipientNumber }) => {
-      const res = await fetch(`${API_BASE}/withdrawals/request`, {
+      return customFetch('/withdrawals/request', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ amount: Number(amount), provider, recipientNumber }),
       });
-      return handleResponse(res);
     },
 
     getMyWithdrawals: async () => {
-      const res = await fetch(`${API_BASE}/withdrawals/my-withdrawals`);
-      return handleResponse(res);
+      return customFetch('/withdrawals/my-withdrawals');
     },
   },
 
   // Network MLM API
   network: {
     getTree: async () => {
-      const res = await fetch(`${API_BASE}/network/tree`);
-      return handleResponse(res);
+      return customFetch('/network/tree');
     },
   },
 
   // Admin API
   admin: {
     getPendingDeposits: async () => {
-      const res = await fetch(`${API_BASE}/admin/pending-deposits`);
-      return handleResponse(res);
+      return customFetch('/admin/pending-deposits');
     },
 
     getPendingWithdrawals: async () => {
-      const res = await fetch(`${API_BASE}/admin/pending-withdrawals`);
-      return handleResponse(res);
+      return customFetch('/admin/pending-withdrawals');
     },
 
     approveDeposit: async (id) => {
-      const res = await fetch(`${API_BASE}/admin/approve-deposit/${id}`, { method: 'POST' });
-      return handleResponse(res);
+      return customFetch(`/admin/approve-deposit/${id}`, { method: 'POST' });
     },
 
     rejectDeposit: async (id, reason) => {
-      const res = await fetch(`${API_BASE}/admin/reject-deposit/${id}`, {
+      return customFetch(`/admin/reject-deposit/${id}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ reason }),
       });
-      return handleResponse(res);
     },
 
     approveWithdrawal: async (id) => {
-      const res = await fetch(`${API_BASE}/admin/approve-withdrawal/${id}`, { method: 'POST' });
-      return handleResponse(res);
+      return customFetch(`/admin/approve-withdrawal/${id}`, { method: 'POST' });
     },
 
     rejectWithdrawal: async (id, reason) => {
-      const res = await fetch(`${API_BASE}/admin/reject-withdrawal/${id}`, {
+      return customFetch(`/admin/reject-withdrawal/${id}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ reason }),
       });
-      return handleResponse(res);
     },
 
     getAuditLogs: async () => {
-      const res = await fetch(`${API_BASE}/admin/audit-logs`);
-      return handleResponse(res);
+      return customFetch('/admin/audit-logs');
     },
 
     addPaymentNumber: async (data) => {
-      const res = await fetch(`${API_BASE}/admin/payment-numbers`, {
+      return customFetch('/admin/payment-numbers', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       });
-      return handleResponse(res);
     },
   },
 
   // Chatbot API (Mistral AI)
   chat: {
     sendMessage: async (message, history = []) => {
-      const res = await fetch(`${API_BASE}/chat`, {
+      return customFetch('/chat', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message, history }),
       });
-      return handleResponse(res);
     },
   },
 
   // Notifications API
   notifications: {
     get: async () => {
-      const res = await fetch(`${API_BASE}/notifications`);
-      return handleResponse(res);
+      return customFetch('/notifications');
     },
     markAsRead: async (id) => {
-      const res = await fetch(`${API_BASE}/notifications/${id}/read`, { method: 'PATCH' });
-      return handleResponse(res);
+      return customFetch(`/notifications/${id}/read`, { method: 'PATCH' });
     },
     markAllAsRead: async () => {
-      const res = await fetch(`${API_BASE}/notifications/read-all`, { method: 'POST' });
-      return handleResponse(res);
+      return customFetch('/notifications/read-all', { method: 'POST' });
     },
   },
 };
