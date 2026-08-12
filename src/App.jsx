@@ -8,6 +8,7 @@ import { WithdrawModal } from './components/WithdrawModal';
 import { RankSuccessModal } from './components/RankSuccessModal';
 import { InactivityTimer } from './components/InactivityTimer';
 import { ChatbotWidget } from './components/ChatbotWidget';
+import { InstallPWAPrompt } from './components/InstallPWAPrompt';
 
 import { DashboardView } from './views/DashboardView';
 import { NetworkView } from './views/NetworkView';
@@ -26,6 +27,7 @@ const MainApp = () => {
       <>
         <AuthView />
         <ChatbotWidget />
+        <InstallPWAPrompt />
         <Toast />
       </>
     );
@@ -36,6 +38,7 @@ const MainApp = () => {
     return (
       <>
         <AdminView />
+        <InstallPWAPrompt />
         <Toast />
       </>
     );
@@ -62,6 +65,9 @@ const MainApp = () => {
       {/* Chatbot Assistant */}
       <ChatbotWidget />
 
+      {/* Mobile App Install Prompt */}
+      <InstallPWAPrompt />
+
       {/* Modals & Overlays */}
       <ManualDepositModal />
       <WithdrawModal />
@@ -71,6 +77,7 @@ const MainApp = () => {
     </div>
   );
 };
+
 
 export default function App() {
   return (
