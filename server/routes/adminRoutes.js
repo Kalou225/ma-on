@@ -289,18 +289,139 @@ router.get('/audit-logs', (req, res) => {
   res.json(logs);
 });
 
-// 8. ADD NEW PAYMENT NUMBER
+// 8. GET ALL PAYMENT NUMBERS (ADMIN)
+router.get('/payment-numbers', (req, res) => {
+  const numbers = db.prepare('SELECT * FROM admin_payment_numbers ORDER BY created_at DESC').all();
+  res.json(numbers);
+});
+
+// 8b. ADD NEW PAYMENT NUMBER (ADMIN)
 router.post('/payment-numbers', (req, res) => {
   const { provider, number, holder, icon } = req.body;
+  if (!provider || !number || !holder) {
+    return res.status(400).json({ error: 'Champs requis manquants (Opérateur, Numéro, Titulaire).' });
+  }
+
+  let defaultIcon = icon;
+  if (!defaultIcon) {
+    if (provider.includes('Wave')) defaultIcon = '🌊';
+    else if (provider.includes('Orange')) defaultIcon = '🟠';
+    else if (provider.includes('MTN')) defaultIcon = '🟡';
+    else if (provider.includes('Moov')) defaultIcon = '🟢';
+    else defaultIcon = '📱';
+  }
+
+  const result = db.prepare(`
+    INSERT INTO admin_payment_numbers (provider, number, holder, icon, active) VALUES (?, ?, ?, ?, 1)
+  `).run(provider.trim(), number.trim(), holder.trim(), defaultIcon);
+
+  logSecurityEvent('PAYMENT_NUMBER_ADDED', {
+    userId: req.user.id,
+    ip: req.ip,
+    details: { provider, number, holder },
+    severity: 'INFO',
+  });
+
+  res.status(201).json({
+    message: 'Numéro d\'encaissement ajouté avec succès.',
+    id: result.lastInsertRowid,
+    paymentNumber: {
+      id: result.lastInsertRowid,
+      provider: provider.trim(),
+      number: number.trim(),
+      holder: holder.trim(),
+      icon: defaultIcon,
+      active: 1,
+    },
+  });
+});
+
+// 8c. UPDATE PAYMENT NUMBER (ADMIN)
+router.put('/payment-numbers/:id', (req, res) => {
+  const { id } = req.params;
+  const { provider, number, holder, icon, active } = req.body;
+
+  const existing = db.prepare('SELECT * FROM admin_payment_numbers WHERE id = ?').get(id);
+  if (!existing) {
+    return res.status(404).json({ error: 'Numéro d\'encaissement introuvable.' });
+  }
+
   if (!provider || !number || !holder) {
     return res.status(400).json({ error: 'Champs requis manquants.' });
   }
 
-  const result = db.prepare(`
-    INSERT INTO admin_payment_numbers (provider, number, holder, icon) VALUES (?, ?, ?, ?)
-  `).run(provider, number, holder, icon || '📱');
+  let finalIcon = icon || existing.icon;
+  if (!finalIcon) {
+    if (provider.includes('Wave')) finalIcon = '🌊';
+    else if (provider.includes('Orange')) finalIcon = '🟠';
+    else if (provider.includes('MTN')) finalIcon = '🟡';
+    else if (provider.includes('Moov')) finalIcon = '🟢';
+    else finalIcon = '📱';
+  }
 
-  res.status(201).json({ message: 'Numéro d\'encaissement ajouté', id: result.lastInsertRowid });
+  const isActive = active !== undefined ? (active ? 1 : 0) : existing.active;
+
+  db.prepare(`
+    UPDATE admin_payment_numbers
+    SET provider = ?, number = ?, holder = ?, icon = ?, active = ?
+    WHERE id = ?
+  `).run(provider.trim(), number.trim(), holder.trim(), finalIcon, isActive, id);
+
+  logSecurityEvent('PAYMENT_NUMBER_UPDATED', {
+    userId: req.user.id,
+    ip: req.ip,
+    details: { id, provider, number, holder, active: isActive },
+    severity: 'INFO',
+  });
+
+  res.json({
+    message: 'Numéro d\'encaissement mis à jour avec succès.',
+    paymentNumber: {
+      id: Number(id),
+      provider: provider.trim(),
+      number: number.trim(),
+      holder: holder.trim(),
+      icon: finalIcon,
+      active: isActive,
+    },
+  });
+});
+
+// 8d. TOGGLE ACTIVE STATUS (ADMIN)
+router.patch('/payment-numbers/:id/toggle', (req, res) => {
+  const { id } = req.params;
+  const existing = db.prepare('SELECT * FROM admin_payment_numbers WHERE id = ?').get(id);
+  if (!existing) {
+    return res.status(404).json({ error: 'Numéro d\'encaissement introuvable.' });
+  }
+
+  const newActive = existing.active === 1 ? 0 : 1;
+  db.prepare('UPDATE admin_payment_numbers SET active = ? WHERE id = ?').run(newActive, id);
+
+  res.json({
+    message: `Numéro ${newActive === 1 ? 'activé' : 'désactivé'} avec succès.`,
+    active: newActive,
+  });
+});
+
+// 8e. DELETE PAYMENT NUMBER (ADMIN)
+router.delete('/payment-numbers/:id', (req, res) => {
+  const { id } = req.params;
+  const existing = db.prepare('SELECT * FROM admin_payment_numbers WHERE id = ?').get(id);
+  if (!existing) {
+    return res.status(404).json({ error: 'Numéro d\'encaissement introuvable.' });
+  }
+
+  db.prepare('DELETE FROM admin_payment_numbers WHERE id = ?').run(id);
+
+  logSecurityEvent('PAYMENT_NUMBER_DELETED', {
+    userId: req.user.id,
+    ip: req.ip,
+    details: { id, provider: existing.provider, number: existing.number },
+    severity: 'WARNING',
+  });
+
+  res.json({ message: 'Numéro d\'encaissement supprimé avec succès.' });
 });
 
 export default router;

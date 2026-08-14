@@ -1,16 +1,9 @@
 import React from 'react';
 import { useApp } from '../context/AppContext';
-import { Wallet, ArrowDownRight, ArrowUpRight, Users, Award, ShieldAlert, Sparkles, Copy, Check, ChevronRight, PhoneCall } from 'lucide-react';
+import { Wallet, ArrowDownRight, ArrowUpRight, Users, Award, ShieldAlert, Sparkles, Share2, Check, ChevronRight, PhoneCall } from 'lucide-react';
 
 export const DashboardView = () => {
-  const { user, setShowDepositModal, setShowWithdrawModal, setActiveTab, transactions } = useApp();
-  const [copiedLink, setCopiedLink] = React.useState(false);
-
-  const handleCopyLink = () => {
-    navigator.clipboard.writeText(`https://illuminati-mlm.app/ref/${user.myReferralCode}`);
-    setCopiedLink(true);
-    setTimeout(() => setCopiedLink(false), 2000);
-  };
+  const { user, setShowDepositModal, setShowWithdrawModal, setShowShareModal, setActiveTab, transactions } = useApp();
 
   return (
     <div className="space-y-4 pb-6 animate-in fade-in">
@@ -129,24 +122,11 @@ export const DashboardView = () => {
           <p className="text-sm font-mono font-bold text-[#F2CA50] mt-0.5">{user.myReferralCode}</p>
         </div>
         <button
-          onClick={handleCopyLink}
-          className={`px-3 py-2 rounded-xl text-xs font-bold flex items-center space-x-1.5 transition-all ${
-            copiedLink
-              ? 'bg-[#10B981] text-white'
-              : 'bg-[#272a2d] text-[#F2CA50] border border-[#d4af37]/30 hover:bg-[#323538]'
-          }`}
+          onClick={() => setShowShareModal(true)}
+          className="px-3.5 py-2.5 rounded-xl text-xs font-extrabold flex items-center space-x-1.5 transition-all gold-gradient-bg text-black hover:brightness-110 active:scale-95 shadow-md"
         >
-          {copiedLink ? (
-            <>
-              <Check className="w-3.5 h-3.5" />
-              <span>Lien Copié</span>
-            </>
-          ) : (
-            <>
-              <Copy className="w-3.5 h-3.5" />
-              <span>Copier Lien</span>
-            </>
-          )}
+          <Share2 className="w-4 h-4" />
+          <span>Partager le lien</span>
         </button>
       </div>
 

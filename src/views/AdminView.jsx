@@ -1,6 +1,22 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
-import { Shield, Check, Plus, Clock, RefreshCw, ArrowUpRight, LogOut, ArrowDownRight, Smartphone, AlertCircle, Eye } from 'lucide-react';
+import {
+  Shield,
+  Check,
+  Plus,
+  Clock,
+  RefreshCw,
+  ArrowUpRight,
+  LogOut,
+  ArrowDownRight,
+  Smartphone,
+  AlertCircle,
+  Eye,
+  Pencil,
+  Trash2,
+  X,
+  AlertTriangle,
+} from 'lucide-react';
 import { api } from '../services/api';
 
 export const AdminView = () => {
@@ -9,6 +25,8 @@ export const AdminView = () => {
     logout,
     paymentNumbers,
     addPaymentNumber,
+    updatePaymentNumber,
+    deletePaymentNumber,
     togglePaymentNumber,
     transactions,
     pendingDeposits,
@@ -23,6 +41,8 @@ export const AdminView = () => {
 
   const [activeAdminTab, setActiveAdminTab] = useState('deposits'); // 'deposits' | 'withdrawals' | 'numbers' | 'logs'
   const [showAddNumberModal, setShowAddNumberModal] = useState(false);
+  const [editingNumber, setEditingNumber] = useState(null); // { id, provider, number, holder, icon, active }
+  const [deletingNumber, setDeletingNumber] = useState(null); // { id, provider, number, holder }
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [auditLogs, setAuditLogs] = useState([]);
 
@@ -31,6 +51,12 @@ export const AdminView = () => {
   const [number, setNumber] = useState('');
   const [holder, setHolder] = useState('');
   const [icon, setIcon] = useState('🟠');
+
+  // Edit Payment Number Form State
+  const [editProvider, setEditProvider] = useState('Orange Money');
+  const [editNumber, setEditNumber] = useState('');
+  const [editHolder, setEditHolder] = useState('');
+  const [editActive, setEditActive] = useState(true);
 
   const fetchLogs = async () => {
     try {
@@ -50,13 +76,54 @@ export const AdminView = () => {
     setIsRefreshing(false);
   };
 
+  const getProviderIcon = (prov) => {
+    if (prov.includes('Wave')) return '🌊';
+    if (prov.includes('Orange')) return '🟠';
+    if (prov.includes('MTN')) return '🟡';
+    if (prov.includes('Moov')) return '🟢';
+    return '📱';
+  };
+
   const handleAddNumber = async (e) => {
     e.preventDefault();
     if (!number || !holder) return;
-    await addPaymentNumber({ provider, number, holder, icon });
-    setNumber('');
-    setHolder('');
-    setShowAddNumberModal(false);
+    const assignedIcon = getProviderIcon(provider);
+    const success = await addPaymentNumber({ provider, number, holder, icon: assignedIcon });
+    if (success) {
+      setNumber('');
+      setHolder('');
+      setShowAddNumberModal(false);
+    }
+  };
+
+  const openEditModal = (item) => {
+    setEditingNumber(item);
+    setEditProvider(item.provider);
+    setEditNumber(item.number);
+    setEditHolder(item.holder);
+    setEditActive(item.active === 1 || item.active === true);
+  };
+
+  const handleUpdateNumber = async (e) => {
+    e.preventDefault();
+    if (!editingNumber || !editNumber || !editHolder) return;
+    const assignedIcon = getProviderIcon(editProvider);
+    const success = await updatePaymentNumber(editingNumber.id, {
+      provider: editProvider,
+      number: editNumber,
+      holder: editHolder,
+      icon: assignedIcon,
+      active: editActive,
+    });
+    if (success) {
+      setEditingNumber(null);
+    }
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deletingNumber) return;
+    await deletePaymentNumber(deletingNumber.id);
+    setDeletingNumber(null);
   };
 
   const allPendingDeposits = pendingDeposits && pendingDeposits.length > 0
@@ -334,107 +401,295 @@ export const AdminView = () => {
 
         {/* TAB 3: PAYMENT RECEPTION NUMBERS */}
         {activeAdminTab === 'numbers' && (
-          <div className="space-y-3">
+          <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <h2 className="text-xs font-bold text-white uppercase tracking-wider">
-                Numéros d'Encaissement Mobile Money
-              </h2>
+              <div>
+                <h2 className="text-xs font-bold text-white uppercase tracking-wider">
+                  Numéros d'Encaissement Mobile Money
+                </h2>
+                <p className="text-[11px] text-[#99907c]">Comptes de réception pour les dépôts manuels</p>
+              </div>
               <button
                 onClick={() => setShowAddNumberModal(true)}
-                className="px-3 py-1.5 rounded-xl bg-[#E63946] text-white font-bold text-xs flex items-center space-x-1 hover:brightness-110"
+                className="px-3 py-2 rounded-xl bg-[#E63946] text-white font-bold text-xs flex items-center space-x-1.5 hover:brightness-110 shadow-lg active:scale-95 transition-all"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>Ajouter Numéro</span>
               </button>
             </div>
 
-            <div className="space-y-2">
-              {paymentNumbers.map((p) => (
-                <div
-                  key={p.id}
-                  className="p-3.5 rounded-2xl bg-[#1d2022] border border-white/5 flex items-center justify-between"
-                >
-                  <div className="flex items-center space-x-3">
-                    <span className="text-2xl">{p.icon}</span>
-                    <div>
-                      <div className="flex items-center space-x-2">
-                        <span className="font-bold text-xs text-white">{p.provider}</span>
-                        <span className="text-[10px] font-mono text-[#F2CA50]">{p.number}</span>
+            {/* List of payment numbers */}
+            <div className="space-y-2.5">
+              {paymentNumbers.length === 0 ? (
+                <div className="p-8 text-center text-[#99907c] bg-[#1d2022] rounded-3xl border border-white/5 text-xs">
+                  Aucun numéro d'encaissement configuré. Cliquez sur "Ajouter Numéro" pour en créer un.
+                </div>
+              ) : (
+                paymentNumbers.map((p) => (
+                  <div
+                    key={p.id}
+                    className="p-4 rounded-3xl bg-[#1d2022] border border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-md hover:border-white/10 transition-colors"
+                  >
+                    <div className="flex items-center space-x-3.5">
+                      <div className="w-11 h-11 rounded-2xl bg-[#101416] border border-white/10 flex items-center justify-center text-2xl shadow-inner shrink-0">
+                        {p.icon || getProviderIcon(p.provider)}
                       </div>
-                      <p className="text-[11px] text-[#99907c]">{p.holder}</p>
+                      <div className="space-y-0.5">
+                        <div className="flex items-center space-x-2">
+                          <span className="font-bold text-xs text-white">{p.provider}</span>
+                          <span
+                            className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${
+                              p.active === 1 || p.active === true
+                                ? 'bg-[#10B981]/15 text-[#10B981] border-[#10B981]/30'
+                                : 'bg-[#272a2d] text-[#99907c] border-white/10'
+                            }`}
+                          >
+                            {p.active === 1 || p.active === true ? '● Actif' : '○ Inactif'}
+                          </span>
+                        </div>
+                        <p className="text-sm font-mono font-bold text-[#F2CA50]">{p.number}</p>
+                        <p className="text-[11px] text-[#99907c]">Titulaire : <span className="text-[#d0c5af]">{p.holder}</span></p>
+                      </div>
+                    </div>
+
+                    {/* Action buttons row */}
+                    <div className="flex items-center space-x-2 self-end sm:self-center pt-2 sm:pt-0 border-t sm:border-t-0 border-white/5 w-full sm:w-auto justify-end">
+                      <button
+                        onClick={() => togglePaymentNumber(p.id)}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-all ${
+                          p.active === 1 || p.active === true
+                            ? 'bg-[#10B981]/10 text-[#10B981] hover:bg-[#10B981]/20 border-[#10B981]/30'
+                            : 'bg-[#272a2d] text-[#99907c] hover:text-white border-white/10'
+                        }`}
+                        title={p.active === 1 || p.active === true ? 'Désactiver ce numéro' : 'Activer ce numéro'}
+                      >
+                        {p.active === 1 || p.active === true ? 'Désactiver' : 'Activer'}
+                      </button>
+
+                      <button
+                        onClick={() => openEditModal(p)}
+                        className="px-3 py-1.5 rounded-xl bg-[#272a2d] hover:bg-[#323538] text-white border border-white/10 text-xs font-bold flex items-center space-x-1 transition-all active:scale-95"
+                        title="Modifier ce numéro"
+                      >
+                        <Pencil className="w-3.5 h-3.5 text-[#F2CA50]" />
+                        <span>Modifier</span>
+                      </button>
+
+                      <button
+                        onClick={() => setDeletingNumber(p)}
+                        className="p-1.5 rounded-xl bg-[#E63946]/10 hover:bg-[#E63946]/20 text-[#E63946] border border-[#E63946]/30 transition-all active:scale-95"
+                        title="Supprimer ce numéro"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     </div>
                   </div>
-
-                  <button
-                    onClick={() => togglePaymentNumber(p.id)}
-                    className={`px-3 py-1 rounded-xl text-[10px] font-bold border transition-all ${
-                      p.active
-                        ? 'bg-[#10B981]/15 text-[#10B981] border-[#10B981]/30'
-                        : 'bg-[#272a2d] text-[#99907c] border-white/10'
-                    }`}
-                  >
-                    {p.active ? 'Actif' : 'Désactivé'}
-                  </button>
-                </div>
-              ))}
+                ))
+              )}
             </div>
 
-            {/* Modal Add Number */}
+            {/* Modal 1: Add Payment Number */}
             {showAddNumberModal && (
-              <div className="p-4 rounded-3xl bg-[#191c1e] border border-[#E63946]/40 space-y-3 mt-4">
-                <h4 className="text-xs font-bold text-white">Nouveau Numéro Récepteur</h4>
-                <form onSubmit={handleAddNumber} className="space-y-2 text-xs">
-                  <div>
-                    <label className="block text-[#99907c] mb-1 font-semibold">Opérateur</label>
-                    <select
-                      value={provider}
-                      onChange={(e) => setProvider(e.target.value)}
-                      className="w-full bg-[#101416] border border-white/10 rounded-xl p-2 text-white outline-none"
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in">
+                <div className="bg-[#191c1e] border border-[#E63946]/50 rounded-3xl w-full max-w-md p-6 space-y-4 shadow-2xl animate-in zoom-in-95">
+                  <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                    <div className="flex items-center space-x-2">
+                      <div className="w-8 h-8 rounded-xl bg-[#E63946]/20 flex items-center justify-center border border-[#E63946]/40 text-[#E63946]">
+                        <Plus className="w-4 h-4" />
+                      </div>
+                      <h4 className="text-sm font-bold text-white">Nouveau Numéro d'Encaissement</h4>
+                    </div>
+                    <button
+                      onClick={() => setShowAddNumberModal(false)}
+                      className="w-7 h-7 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center text-[#99907c] hover:text-white"
                     >
-                      <option value="Orange Money">Orange Money 🟠</option>
-                      <option value="Wave">Wave 🌊</option>
-                      <option value="MTN MoMo">MTN MoMo 🟡</option>
-                      <option value="Moov Money">Moov Money 🟢</option>
-                    </select>
+                      <X className="w-4 h-4" />
+                    </button>
                   </div>
+
+                  <form onSubmit={handleAddNumber} className="space-y-3 text-xs">
+                    <div>
+                      <label className="block text-[#99907c] mb-1 font-semibold">Opérateur Mobile Money</label>
+                      <select
+                        value={provider}
+                        onChange={(e) => setProvider(e.target.value)}
+                        className="w-full bg-[#101416] border border-white/10 rounded-xl p-3 text-white outline-none focus:border-[#E63946]"
+                      >
+                        <option value="Orange Money">Orange Money 🟠</option>
+                        <option value="Wave">Wave 🌊</option>
+                        <option value="MTN MoMo">MTN MoMo 🟡</option>
+                        <option value="Moov Money">Moov Money 🟢</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[#99907c] mb-1 font-semibold">Numéro de Téléphone Récepteur</label>
+                      <input
+                        type="tel"
+                        value={number}
+                        onChange={(e) => setNumber(e.target.value)}
+                        placeholder="+225 07 12 34 56 78"
+                        required
+                        className="w-full bg-[#101416] border border-white/10 rounded-xl p-3 text-white outline-none font-mono focus:border-[#E63946]"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[#99907c] mb-1 font-semibold">Nom du Titulaire / Compte</label>
+                      <input
+                        type="text"
+                        value={holder}
+                        onChange={(e) => setHolder(e.target.value)}
+                        placeholder="ex: Eco-Finance Trésorerie CI"
+                        required
+                        className="w-full bg-[#101416] border border-white/10 rounded-xl p-3 text-white outline-none focus:border-[#E63946]"
+                      />
+                    </div>
+
+                    <div className="flex space-x-2 pt-3">
+                      <button
+                        type="submit"
+                        className="flex-1 py-3 rounded-xl bg-[#E63946] text-white font-bold text-xs hover:brightness-110 shadow-lg active:scale-95 transition-all"
+                      >
+                        Enregistrer le Numéro
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setShowAddNumberModal(false)}
+                        className="px-5 py-3 rounded-xl bg-[#272a2d] text-[#99907c] hover:text-white font-bold text-xs transition-colors"
+                      >
+                        Annuler
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
+
+            {/* Modal 2: Edit Payment Number */}
+            {editingNumber && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in">
+                <div className="bg-[#191c1e] border border-[#F2CA50]/50 rounded-3xl w-full max-w-md p-6 space-y-4 shadow-2xl animate-in zoom-in-95">
+                  <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                    <div className="flex items-center space-x-2">
+                      <div className="w-8 h-8 rounded-xl bg-[#F2CA50]/20 flex items-center justify-center border border-[#F2CA50]/40 text-[#F2CA50]">
+                        <Pencil className="w-4 h-4" />
+                      </div>
+                      <h4 className="text-sm font-bold text-white">Modifier le Numéro d'Encaissement</h4>
+                    </div>
+                    <button
+                      onClick={() => setEditingNumber(null)}
+                      className="w-7 h-7 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center text-[#99907c] hover:text-white"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  <form onSubmit={handleUpdateNumber} className="space-y-3 text-xs">
+                    <div>
+                      <label className="block text-[#99907c] mb-1 font-semibold">Opérateur Mobile Money</label>
+                      <select
+                        value={editProvider}
+                        onChange={(e) => setEditProvider(e.target.value)}
+                        className="w-full bg-[#101416] border border-white/10 rounded-xl p-3 text-white outline-none focus:border-[#F2CA50]"
+                      >
+                        <option value="Orange Money">Orange Money 🟠</option>
+                        <option value="Wave">Wave 🌊</option>
+                        <option value="MTN MoMo">MTN MoMo 🟡</option>
+                        <option value="Moov Money">Moov Money 🟢</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[#99907c] mb-1 font-semibold">Numéro de Téléphone Récepteur</label>
+                      <input
+                        type="tel"
+                        value={editNumber}
+                        onChange={(e) => setEditNumber(e.target.value)}
+                        placeholder="+225 07 12 34 56 78"
+                        required
+                        className="w-full bg-[#101416] border border-white/10 rounded-xl p-3 text-white outline-none font-mono focus:border-[#F2CA50]"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[#99907c] mb-1 font-semibold">Nom du Titulaire / Compte</label>
+                      <input
+                        type="text"
+                        value={editHolder}
+                        onChange={(e) => setEditHolder(e.target.value)}
+                        placeholder="ex: Eco-Finance Trésorerie CI"
+                        required
+                        className="w-full bg-[#101416] border border-white/10 rounded-xl p-3 text-white outline-none focus:border-[#F2CA50]"
+                      />
+                    </div>
+
+                    <div className="flex items-center space-x-2 pt-1">
+                      <input
+                        type="checkbox"
+                        id="editActive"
+                        checked={editActive}
+                        onChange={(e) => setEditActive(e.target.checked)}
+                        className="w-4 h-4 accent-[#10B981] rounded cursor-pointer"
+                      />
+                      <label htmlFor="editActive" className="text-xs text-white font-medium cursor-pointer">
+                        Numéro actif (visible par les membres pour les dépôts)
+                      </label>
+                    </div>
+
+                    <div className="flex space-x-2 pt-3">
+                      <button
+                        type="submit"
+                        className="flex-1 py-3 rounded-xl gold-gradient-bg text-black font-bold text-xs hover:brightness-110 shadow-lg active:scale-95 transition-all"
+                      >
+                        Enregistrer les Modifications
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEditingNumber(null)}
+                        className="px-5 py-3 rounded-xl bg-[#272a2d] text-[#99907c] hover:text-white font-bold text-xs transition-colors"
+                      >
+                        Annuler
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
+
+            {/* Modal 3: Delete Confirmation */}
+            {deletingNumber && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm animate-in fade-in">
+                <div className="bg-[#191c1e] border border-[#E63946] rounded-3xl w-full max-w-sm p-6 space-y-4 shadow-2xl text-center animate-in zoom-in-95">
+                  <div className="w-12 h-12 rounded-2xl bg-[#E63946]/20 border border-[#E63946]/40 flex items-center justify-center text-[#E63946] mx-auto">
+                    <AlertTriangle className="w-6 h-6" />
+                  </div>
+
                   <div>
-                    <label className="block text-[#99907c] mb-1 font-semibold">Numéro de Téléphone</label>
-                    <input
-                      type="text"
-                      value={number}
-                      onChange={(e) => setNumber(e.target.value)}
-                      placeholder="+225 07 ..."
-                      required
-                      className="w-full bg-[#101416] border border-white/10 rounded-xl p-2 text-white outline-none font-mono"
-                    />
+                    <h4 className="text-sm font-bold text-white">Supprimer ce Numéro d'Encaissement ?</h4>
+                    <p className="text-xs text-[#d0c5af] mt-2">
+                      Êtes-vous sûr de vouloir supprimer définitivement le numéro <strong className="text-white">{deletingNumber.provider} ({deletingNumber.number})</strong> ?
+                    </p>
+                    <p className="text-[11px] text-[#99907c] mt-1">
+                      Titulaire : {deletingNumber.holder}
+                    </p>
                   </div>
-                  <div>
-                    <label className="block text-[#99907c] mb-1 font-semibold">Nom du Titulaire</label>
-                    <input
-                      type="text"
-                      value={holder}
-                      onChange={(e) => setHolder(e.target.value)}
-                      placeholder="Eco-Finance Treasury"
-                      required
-                      className="w-full bg-[#101416] border border-white/10 rounded-xl p-2 text-white outline-none"
-                    />
-                  </div>
+
                   <div className="flex space-x-2 pt-2">
                     <button
-                      type="submit"
-                      className="flex-1 py-2 rounded-xl bg-[#E63946] text-white font-bold text-xs"
+                      onClick={handleConfirmDelete}
+                      className="flex-1 py-3 rounded-xl bg-[#E63946] text-white font-bold text-xs hover:brightness-110 shadow-lg active:scale-95 transition-all"
                     >
-                      Enregistrer Numéro
+                      Supprimer définitivement
                     </button>
                     <button
-                      type="button"
-                      onClick={() => setShowAddNumberModal(false)}
-                      className="px-4 py-2 rounded-xl bg-[#272a2d] text-[#99907c] font-bold text-xs"
+                      onClick={() => setDeletingNumber(null)}
+                      className="px-4 py-3 rounded-xl bg-[#272a2d] text-[#99907c] hover:text-white font-bold text-xs transition-colors"
                     >
                       Annuler
                     </button>
                   </div>
-                </form>
+                </div>
               </div>
             )}
           </div>

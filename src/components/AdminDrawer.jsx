@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { Shield, X, Check, Plus, Smartphone, Clock, RefreshCw, ArrowUpRight } from 'lucide-react';
+import { Shield, X, Check, Plus, Smartphone, Clock, RefreshCw, ArrowUpRight, Pencil, Trash2, AlertTriangle } from 'lucide-react';
 
 export const AdminDrawer = () => {
   const {
@@ -8,6 +8,8 @@ export const AdminDrawer = () => {
     setIsAdminMode,
     paymentNumbers,
     addPaymentNumber,
+    updatePaymentNumber,
+    deletePaymentNumber,
     togglePaymentNumber,
     transactions,
     pendingDeposits,
@@ -21,6 +23,8 @@ export const AdminDrawer = () => {
 
   const [activeAdminTab, setActiveAdminTab] = useState('deposits'); // 'deposits' | 'withdrawals' | 'numbers' | 'all'
   const [showAddNumberModal, setShowAddNumberModal] = useState(false);
+  const [editingNumber, setEditingNumber] = useState(null);
+  const [deletingNumber, setDeletingNumber] = useState(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   // New Number Form State
@@ -28,6 +32,12 @@ export const AdminDrawer = () => {
   const [number, setNumber] = useState('');
   const [holder, setHolder] = useState('');
   const [icon, setIcon] = useState('🟠');
+
+  // Edit Form State
+  const [editProvider, setEditProvider] = useState('Orange Money');
+  const [editNumber, setEditNumber] = useState('');
+  const [editHolder, setEditHolder] = useState('');
+  const [editActive, setEditActive] = useState(true);
 
   if (!isAdminMode) return null;
 
@@ -37,13 +47,54 @@ export const AdminDrawer = () => {
     setIsRefreshing(false);
   };
 
+  const getProviderIcon = (prov) => {
+    if (prov.includes('Wave')) return '🌊';
+    if (prov.includes('Orange')) return '🟠';
+    if (prov.includes('MTN')) return '🟡';
+    if (prov.includes('Moov')) return '🟢';
+    return '📱';
+  };
+
   const handleAddNumber = async (e) => {
     e.preventDefault();
     if (!number || !holder) return;
-    await addPaymentNumber({ provider, number, holder, icon });
-    setNumber('');
-    setHolder('');
-    setShowAddNumberModal(false);
+    const assignedIcon = getProviderIcon(provider);
+    const success = await addPaymentNumber({ provider, number, holder, icon: assignedIcon });
+    if (success) {
+      setNumber('');
+      setHolder('');
+      setShowAddNumberModal(false);
+    }
+  };
+
+  const openEditModal = (item) => {
+    setEditingNumber(item);
+    setEditProvider(item.provider);
+    setEditNumber(item.number);
+    setEditHolder(item.holder);
+    setEditActive(item.active === 1 || item.active === true);
+  };
+
+  const handleUpdateNumber = async (e) => {
+    e.preventDefault();
+    if (!editingNumber || !editNumber || !editHolder) return;
+    const assignedIcon = getProviderIcon(editProvider);
+    const success = await updatePaymentNumber(editingNumber.id, {
+      provider: editProvider,
+      number: editNumber,
+      holder: editHolder,
+      icon: assignedIcon,
+      active: editActive,
+    });
+    if (success) {
+      setEditingNumber(null);
+    }
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deletingNumber) return;
+    await deletePaymentNumber(deletingNumber.id);
+    setDeletingNumber(null);
   };
 
   const allPendingDeposits = pendingDeposits && pendingDeposits.length > 0
@@ -290,40 +341,68 @@ export const AdminDrawer = () => {
           {activeAdminTab === 'numbers' && (
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <h4 className="text-xs font-bold text-[#e0e3e6]">Numéros d'encaissement actifs</h4>
+                <div>
+                  <h4 className="text-xs font-bold text-[#e0e3e6]">Numéros d'encaissement Mobile Money</h4>
+                  <p className="text-[10px] text-[#99907c]">Comptes de réception pour les dépôts</p>
+                </div>
                 <button
                   onClick={() => setShowAddNumberModal(true)}
-                  className="px-3 py-1.5 rounded-xl bg-[#E63946] text-white text-xs font-bold flex items-center space-x-1 hover:brightness-110"
+                  className="px-3 py-1.5 rounded-xl bg-[#E63946] text-white text-xs font-bold flex items-center space-x-1 hover:brightness-110 shadow active:scale-95 transition-all"
                 >
                   <Plus className="w-3.5 h-3.5" />
-                  <span>Ajouter un numéro</span>
+                  <span>Ajouter Numéro</span>
                 </button>
               </div>
 
               <div className="space-y-2">
                 {paymentNumbers.map((p) => (
-                  <div key={p.id} className="p-3 rounded-2xl bg-[#191c1e] border border-white/10 flex items-center justify-between">
+                  <div key={p.id} className="p-3 rounded-2xl bg-[#191c1e] border border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                     <div className="flex items-center space-x-3">
-                      <span className="text-2xl">{p.icon}</span>
+                      <span className="text-2xl">{p.icon || getProviderIcon(p.provider)}</span>
                       <div>
                         <div className="flex items-center space-x-2">
                           <span className="text-xs font-bold text-white">{p.provider}</span>
-                          <span className="text-[10px] text-[#99907c]">{p.holder}</span>
+                          <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded-full border ${
+                            p.active === 1 || p.active === true
+                              ? 'bg-[#10B981]/20 text-[#10B981] border-[#10B981]/40'
+                              : 'bg-[#99907c]/20 text-[#99907c] border-[#99907c]/40'
+                          }`}>
+                            {p.active === 1 || p.active === true ? '● Actif' : '○ Inactif'}
+                          </span>
                         </div>
                         <p className="text-sm font-mono font-bold text-[#F2CA50]">{p.number}</p>
+                        <p className="text-[10px] text-[#99907c]">Titulaire : {p.holder}</p>
                       </div>
                     </div>
 
-                    <button
-                      onClick={() => togglePaymentNumber(p.id)}
-                      className={`px-3 py-1 rounded-full text-[11px] font-bold border ${
-                        p.active
-                          ? 'bg-[#10B981]/20 text-[#10B981] border-[#10B981]/40'
-                          : 'bg-[#99907c]/20 text-[#99907c] border-[#99907c]/40'
-                      }`}
-                    >
-                      {p.active ? 'Actif' : 'Désactivé'}
-                    </button>
+                    <div className="flex items-center space-x-1.5 self-end sm:self-center">
+                      <button
+                        onClick={() => togglePaymentNumber(p.id)}
+                        className={`px-2.5 py-1 rounded-xl text-[10px] font-bold border transition-all ${
+                          p.active === 1 || p.active === true
+                            ? 'bg-[#10B981]/15 text-[#10B981] border-[#10B981]/30'
+                            : 'bg-[#272a2d] text-[#99907c] border-white/10'
+                        }`}
+                      >
+                        {p.active === 1 || p.active === true ? 'Désactiver' : 'Activer'}
+                      </button>
+
+                      <button
+                        onClick={() => openEditModal(p)}
+                        className="p-1.5 rounded-xl bg-[#272a2d] text-white hover:bg-[#323538] border border-white/10"
+                        title="Modifier"
+                      >
+                        <Pencil className="w-3.5 h-3.5 text-[#F2CA50]" />
+                      </button>
+
+                      <button
+                        onClick={() => setDeletingNumber(p)}
+                        className="p-1.5 rounded-xl bg-[#E63946]/10 hover:bg-[#E63946]/20 text-[#E63946] border border-[#E63946]/30"
+                        title="Supprimer"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -366,10 +445,10 @@ export const AdminDrawer = () => {
           )}
         </div>
 
-        {/* Modal inside Admin for Adding New Payment Number */}
+        {/* Modal 1: Add New Payment Number */}
         {showAddNumberModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-            <div className="bg-[#1d2022] border border-[#E63946] rounded-2xl p-5 w-full max-w-sm space-y-4">
+            <div className="bg-[#1d2022] border border-[#E63946] rounded-2xl p-5 w-full max-w-sm space-y-4 shadow-2xl">
               <div className="flex items-center justify-between border-b border-white/10 pb-2">
                 <h4 className="font-bold text-sm text-white">Nouveau numéro d'encaissement</h4>
                 <button onClick={() => setShowAddNumberModal(false)} className="text-[#99907c] hover:text-white">
@@ -382,31 +461,25 @@ export const AdminDrawer = () => {
                   <label className="block text-[#99907c] mb-1 font-semibold">Opérateur Mobile</label>
                   <select
                     value={provider}
-                    onChange={(e) => {
-                      setProvider(e.target.value);
-                      if (e.target.value.includes('Orange')) setIcon('🟠');
-                      else if (e.target.value.includes('MTN')) setIcon('🟡');
-                      else if (e.target.value.includes('Wave')) setIcon('🌊');
-                      else setIcon('🟢');
-                    }}
-                    className="w-full bg-[#101416] border border-white/10 rounded-xl px-3 py-2 text-white"
+                    onChange={(e) => setProvider(e.target.value)}
+                    className="w-full bg-[#101416] border border-white/10 rounded-xl px-3 py-2 text-white outline-none"
                   >
-                    <option value="Orange Money">Orange Money</option>
-                    <option value="MTN MoMo">MTN MoMo</option>
-                    <option value="Wave">Wave</option>
-                    <option value="Moov Money">Moov Money</option>
+                    <option value="Orange Money">Orange Money 🟠</option>
+                    <option value="MTN MoMo">MTN MoMo 🟡</option>
+                    <option value="Wave">Wave 🌊</option>
+                    <option value="Moov Money">Moov Money 🟢</option>
                   </select>
                 </div>
 
                 <div>
                   <label className="block text-[#99907c] mb-1 font-semibold">Numéro de Téléphone Récepteur</label>
                   <input
-                    type="text"
+                    type="tel"
                     value={number}
                     onChange={(e) => setNumber(e.target.value)}
                     placeholder="ex: +225 07 99 88 77 66"
                     required
-                    className="w-full bg-[#101416] border border-white/10 rounded-xl px-3 py-2 text-white font-mono"
+                    className="w-full bg-[#101416] border border-white/10 rounded-xl px-3 py-2 text-white font-mono outline-none"
                   />
                 </div>
 
@@ -416,19 +489,140 @@ export const AdminDrawer = () => {
                     type="text"
                     value={holder}
                     onChange={(e) => setHolder(e.target.value)}
-                    placeholder="ex: Illuminati Treasury OM"
+                    placeholder="ex: Eco-Finance Trésorerie"
                     required
-                    className="w-full bg-[#101416] border border-white/10 rounded-xl px-3 py-2 text-white"
+                    className="w-full bg-[#101416] border border-white/10 rounded-xl px-3 py-2 text-white outline-none"
                   />
                 </div>
 
-                <button
-                  type="submit"
-                  className="w-full py-2.5 rounded-xl bg-[#E63946] text-white font-bold text-xs hover:brightness-110"
-                >
-                  Enregistrer le numéro
-                </button>
+                <div className="flex space-x-2 pt-2">
+                  <button
+                    type="submit"
+                    className="flex-1 py-2.5 rounded-xl bg-[#E63946] text-white font-bold text-xs hover:brightness-110 shadow active:scale-95 transition-all"
+                  >
+                    Enregistrer le numéro
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowAddNumberModal(false)}
+                    className="px-4 py-2.5 rounded-xl bg-[#272a2d] text-[#99907c] hover:text-white font-bold text-xs"
+                  >
+                    Annuler
+                  </button>
+                </div>
               </form>
+            </div>
+          </div>
+        )}
+
+        {/* Modal 2: Edit Payment Number */}
+        {editingNumber && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+            <div className="bg-[#1d2022] border border-[#F2CA50] rounded-2xl p-5 w-full max-w-sm space-y-4 shadow-2xl">
+              <div className="flex items-center justify-between border-b border-white/10 pb-2">
+                <h4 className="font-bold text-sm text-white">Modifier le numéro</h4>
+                <button onClick={() => setEditingNumber(null)} className="text-[#99907c] hover:text-white">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <form onSubmit={handleUpdateNumber} className="space-y-3 text-xs">
+                <div>
+                  <label className="block text-[#99907c] mb-1 font-semibold">Opérateur Mobile</label>
+                  <select
+                    value={editProvider}
+                    onChange={(e) => setEditProvider(e.target.value)}
+                    className="w-full bg-[#101416] border border-white/10 rounded-xl px-3 py-2 text-white outline-none"
+                  >
+                    <option value="Orange Money">Orange Money 🟠</option>
+                    <option value="MTN MoMo">MTN MoMo 🟡</option>
+                    <option value="Wave">Wave 🌊</option>
+                    <option value="Moov Money">Moov Money 🟢</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[#99907c] mb-1 font-semibold">Numéro de Téléphone</label>
+                  <input
+                    type="tel"
+                    value={editNumber}
+                    onChange={(e) => setEditNumber(e.target.value)}
+                    placeholder="ex: +225 07 99 88 77 66"
+                    required
+                    className="w-full bg-[#101416] border border-white/10 rounded-xl px-3 py-2 text-white font-mono outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[#99907c] mb-1 font-semibold">Nom du Titulaire</label>
+                  <input
+                    type="text"
+                    value={editHolder}
+                    onChange={(e) => setEditHolder(e.target.value)}
+                    placeholder="ex: Eco-Finance Trésorerie"
+                    required
+                    className="w-full bg-[#101416] border border-white/10 rounded-xl px-3 py-2 text-white outline-none"
+                  />
+                </div>
+
+                <div className="flex items-center space-x-2 pt-1">
+                  <input
+                    type="checkbox"
+                    id="editDrawerActive"
+                    checked={editActive}
+                    onChange={(e) => setEditActive(e.target.checked)}
+                    className="w-4 h-4 accent-[#10B981] rounded"
+                  />
+                  <label htmlFor="editDrawerActive" className="text-xs text-white">
+                    Numéro actif pour les dépôts
+                  </label>
+                </div>
+
+                <div className="flex space-x-2 pt-2">
+                  <button
+                    type="submit"
+                    className="flex-1 py-2.5 rounded-xl gold-gradient-bg text-black font-bold text-xs hover:brightness-110 shadow active:scale-95 transition-all"
+                  >
+                    Sauvegarder
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditingNumber(null)}
+                    className="px-4 py-2.5 rounded-xl bg-[#272a2d] text-[#99907c] hover:text-white font-bold text-xs"
+                  >
+                    Annuler
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Modal 3: Delete Confirmation */}
+        {deletingNumber && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm">
+            <div className="bg-[#1d2022] border border-[#E63946] rounded-2xl p-5 w-full max-w-sm space-y-3 text-center shadow-2xl">
+              <div className="w-10 h-10 rounded-xl bg-[#E63946]/20 border border-[#E63946]/40 flex items-center justify-center text-[#E63946] mx-auto">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <h4 className="font-bold text-sm text-white">Supprimer ce numéro ?</h4>
+              <p className="text-xs text-[#d0c5af]">
+                Voulez-vous supprimer <strong>{deletingNumber.provider} ({deletingNumber.number})</strong> ?
+              </p>
+              <div className="flex space-x-2 pt-2">
+                <button
+                  onClick={handleConfirmDelete}
+                  className="flex-1 py-2.5 rounded-xl bg-[#E63946] text-white font-bold text-xs hover:brightness-110 shadow active:scale-95 transition-all"
+                >
+                  Supprimer
+                </button>
+                <button
+                  onClick={() => setDeletingNumber(null)}
+                  className="px-4 py-2.5 rounded-xl bg-[#272a2d] text-[#99907c] hover:text-white font-bold text-xs"
+                >
+                  Annuler
+                </button>
+              </div>
             </div>
           </div>
         )}

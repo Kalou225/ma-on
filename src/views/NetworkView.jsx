@@ -1,17 +1,10 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { GitFork } from 'lucide-react';
+import { GitFork, Share2 } from 'lucide-react';
 
 export const NetworkView = () => {
-  const { user, networkData } = useApp();
-  const [copied, setCopied] = useState(false);
+  const { user, networkData, setShowShareModal } = useApp();
   const [selectedLevel, setSelectedLevel] = useState(1);
-
-  const handleCopy = () => {
-    navigator.clipboard.writeText(`https://illuminati-mlm.app/ref/${user.myReferralCode || 'ILL-88392'}`);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
 
   // Flatten referrals by level from networkData tree
   const tree = networkData?.tree || [];
@@ -68,12 +61,11 @@ export const NetworkView = () => {
             </p>
           </div>
           <button
-            onClick={handleCopy}
-            className={`px-3 py-2 rounded-xl text-xs font-bold shrink-0 transition-all ${
-              copied ? 'bg-[#10B981] text-white' : 'gold-gradient-bg text-black hover:brightness-110'
-            }`}
+            onClick={() => setShowShareModal(true)}
+            className="px-3 py-2 rounded-xl text-xs font-bold shrink-0 transition-all gold-gradient-bg text-black hover:brightness-110 flex items-center space-x-1.5 shadow-md active:scale-95"
           >
-            {copied ? 'Copié !' : 'Copier Code'}
+            <Share2 className="w-3.5 h-3.5" />
+            <span>Partager le lien</span>
           </button>
         </div>
       </div>

@@ -15,6 +15,7 @@ export const AppProvider = ({ children }) => {
   const [showDepositModal, setShowDepositModal] = useState(false);
   const [showWithdrawModal, setShowWithdrawModal] = useState(false);
   const [showRankSuccessModal, setShowRankSuccessModal] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
   const [selectedRankCelebration, setSelectedRankCelebration] = useState(null);
 
   // Core User State
@@ -120,12 +121,17 @@ export const AppProvider = ({ children }) => {
           }));
         }
 
-        // If ADMIN, fetch pending deposits and withdrawals
+        // If ADMIN, fetch pending deposits, withdrawals and all payment numbers
         if (meData.user.role === 'ADMIN') {
           const deps = await api.admin.getPendingDeposits().catch(() => []);
           const wths = await api.admin.getPendingWithdrawals().catch(() => []);
+          const nums = await api.admin.getPaymentNumbers().catch(() => []);
           setPendingDeposits(deps);
           setPendingWithdrawals(wths);
+          if (Array.isArray(nums) && nums.length > 0) setPaymentNumbers(nums);
+        } else {
+          const nums = await api.deposits.getPaymentNumbers().catch(() => []);
+          if (Array.isArray(nums) && nums.length > 0) setPaymentNumbers(nums);
         }
       }
     } catch (err) {
@@ -266,21 +272,59 @@ export const AppProvider = ({ children }) => {
     }
   };
 
-  // 7. Add Admin Payment Number
+  // 7. Payment Numbers CRUD Management (Admin)
   const addPaymentNumber = async (newNumber) => {
     try {
-      await api.admin.addPaymentNumber(newNumber);
-      setPaymentNumbers((prev) => [...prev, { id: Date.now(), ...newNumber, active: true }]);
-      showToastNotification('Nouveau numéro de réception ajouté !', 'success');
+      const res = await api.admin.addPaymentNumber(newNumber);
+      if (res.paymentNumber) {
+        setPaymentNumbers((prev) => [res.paymentNumber, ...prev]);
+      } else {
+        await refreshUserData();
+      }
+      showToastNotification('Numéro de réception ajouté avec succès !', 'success');
+      return true;
     } catch (err) {
       showToastNotification(err.message || 'Erreur lors de l\'ajout du numéro', 'error');
+      return false;
     }
   };
 
-  const togglePaymentNumber = (id) => {
-    setPaymentNumbers((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, active: !item.active } : item))
-    );
+  const updatePaymentNumber = async (id, updatedData) => {
+    try {
+      const res = await api.admin.updatePaymentNumber(id, updatedData);
+      setPaymentNumbers((prev) =>
+        prev.map((item) => (item.id === id ? { ...item, ...res.paymentNumber } : item))
+      );
+      showToastNotification('Numéro d\'encaissement mis à jour !', 'success');
+      return true;
+    } catch (err) {
+      showToastNotification(err.message || 'Erreur lors de la modification', 'error');
+      return false;
+    }
+  };
+
+  const togglePaymentNumber = async (id) => {
+    try {
+      const res = await api.admin.togglePaymentNumber(id);
+      setPaymentNumbers((prev) =>
+        prev.map((item) => (item.id === id ? { ...item, active: res.active } : item))
+      );
+      showToastNotification(res.message || 'Statut mis à jour.', 'info');
+    } catch (err) {
+      showToastNotification(err.message || 'Erreur lors du changement de statut', 'error');
+    }
+  };
+
+  const deletePaymentNumber = async (id) => {
+    try {
+      await api.admin.deletePaymentNumber(id);
+      setPaymentNumbers((prev) => prev.filter((item) => item.id !== id));
+      showToastNotification('Numéro d\'encaissement supprimé avec succès !', 'success');
+      return true;
+    } catch (err) {
+      showToastNotification(err.message || 'Erreur lors de la suppression', 'error');
+      return false;
+    }
   };
 
   const markNotificationsRead = async () => {
@@ -322,9 +366,50 @@ export const AppProvider = ({ children }) => {
     }
   };
 
-  const signup = async ({ name, email, phone, sponsorCode, password }) => {
+  const sendOtp = async (phone, email) => {
     try {
-      const data = await api.auth.signup({ name, email, phone, sponsorCode, password });
+      const data = await api.auth.sendOtp({ phone, email });
+      if (data.simulatedCode) {
+        showToastNotification(`Code SMS envoyé au ${phone} : ${data.simulatedCode}`, 'info');
+      } else {
+        showToastNotification(`Code SMS envoyé avec succès au ${phone}.`, 'info');
+      }
+      return data;
+    } catch (err) {
+      showToastNotification(err.message || 'Impossible d\'envoyer le code SMS', 'error');
+      throw err;
+    }
+  };
+
+  const sendForgotPasswordOtp = async (phone) => {
+    try {
+      const data = await api.auth.sendForgotPasswordOtp({ phone });
+      if (data.simulatedCode) {
+        showToastNotification(`Code de récupération SMS envoyé : ${data.simulatedCode}`, 'info');
+      } else {
+        showToastNotification(`Code SMS envoyé avec succès au ${phone}.`, 'info');
+      }
+      return data;
+    } catch (err) {
+      showToastNotification(err.message || 'Impossible d\'envoyer le code de récupération', 'error');
+      throw err;
+    }
+  };
+
+  const resetPassword = async ({ phone, otpCode, newPassword, confirmNewPassword }) => {
+    try {
+      const data = await api.auth.resetPassword({ phone, otpCode, newPassword, confirmNewPassword });
+      showToastNotification(data.message || 'Mot de passe réinitialisé avec succès !', 'success');
+      return data;
+    } catch (err) {
+      showToastNotification(err.message || 'Erreur lors de la réinitialisation du mot de passe', 'error');
+      throw err;
+    }
+  };
+
+  const signup = async ({ name, email, phone, sponsorCode, password, confirmPassword, otpCode }) => {
+    try {
+      const data = await api.auth.signup({ name, email, phone, sponsorCode, password, confirmPassword, otpCode });
       setIsAuthenticated(true);
       setUser((prev) => ({
         ...prev,
@@ -332,7 +417,7 @@ export const AppProvider = ({ children }) => {
         myReferralCode: data.user.myReferralCode || data.user.my_referral_code,
       }));
       setActiveTab('dashboard');
-      showToastNotification('Inscription réussie ! Effectuez votre dépôt manuel d\'activation.', 'warning');
+      showToastNotification('Inscription et vérification réussies ! Bienvenue sur Eco-Finance.', 'success');
       await refreshUserData();
       return true;
     } catch (err) {
@@ -377,6 +462,9 @@ export const AppProvider = ({ children }) => {
         isLoadingAuth,
         login,
         signup,
+        sendOtp,
+        sendForgotPasswordOtp,
+        resetPassword,
         logout,
         updateAvatar,
         showDepositModal,
@@ -385,6 +473,8 @@ export const AppProvider = ({ children }) => {
         setShowWithdrawModal,
         showRankSuccessModal,
         setShowRankSuccessModal,
+        showShareModal,
+        setShowShareModal,
         selectedRankCelebration,
         setSelectedRankCelebration,
         user,
@@ -402,6 +492,8 @@ export const AppProvider = ({ children }) => {
         approveWithdrawal,
         rejectWithdrawal,
         addPaymentNumber,
+        updatePaymentNumber,
+        deletePaymentNumber,
         togglePaymentNumber,
         requestWithdrawal,
         markNotificationsRead,

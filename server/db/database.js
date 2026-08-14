@@ -92,6 +92,16 @@ db.exec(`
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id)
   );
+
+  CREATE TABLE IF NOT EXISTS phone_verifications (
+    id TEXT PRIMARY KEY,
+    phone TEXT NOT NULL,
+    otp_code TEXT NOT NULL,
+    expires_at DATETIME NOT NULL,
+    attempts INTEGER NOT NULL DEFAULT 0,
+    verified INTEGER NOT NULL DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
 `);
 
 try {

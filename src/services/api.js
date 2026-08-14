@@ -51,10 +51,31 @@ export const api = {
       return data;
     },
 
-    signup: async ({ name, email, phone, password, sponsorCode }) => {
+    sendOtp: async ({ phone, email }) => {
+      return customFetch('/auth/send-otp', {
+        method: 'POST',
+        body: JSON.stringify({ phone, email }),
+      });
+    },
+
+    sendForgotPasswordOtp: async ({ phone }) => {
+      return customFetch('/auth/forgot-password/send-otp', {
+        method: 'POST',
+        body: JSON.stringify({ phone }),
+      });
+    },
+
+    resetPassword: async ({ phone, otpCode, newPassword, confirmNewPassword }) => {
+      return customFetch('/auth/forgot-password/reset', {
+        method: 'POST',
+        body: JSON.stringify({ phone, otpCode, newPassword, confirmNewPassword }),
+      });
+    },
+
+    signup: async ({ name, email, phone, password, confirmPassword, sponsorCode, otpCode }) => {
       const data = await customFetch('/auth/signup', {
         method: 'POST',
-        body: JSON.stringify({ name, email, phone, password, sponsorCode }),
+        body: JSON.stringify({ name, email, phone, password, confirmPassword, sponsorCode, otpCode }),
       });
       if (data.accessToken) {
         localStorage.setItem('accessToken', data.accessToken);
@@ -157,10 +178,33 @@ export const api = {
       return customFetch('/admin/audit-logs');
     },
 
+    getPaymentNumbers: async () => {
+      return customFetch('/admin/payment-numbers');
+    },
+
     addPaymentNumber: async (data) => {
       return customFetch('/admin/payment-numbers', {
         method: 'POST',
         body: JSON.stringify(data),
+      });
+    },
+
+    updatePaymentNumber: async (id, data) => {
+      return customFetch(`/admin/payment-numbers/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      });
+    },
+
+    togglePaymentNumber: async (id) => {
+      return customFetch(`/admin/payment-numbers/${id}/toggle`, {
+        method: 'PATCH',
+      });
+    },
+
+    deletePaymentNumber: async (id) => {
+      return customFetch(`/admin/payment-numbers/${id}`, {
+        method: 'DELETE',
       });
     },
   },

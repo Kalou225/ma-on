@@ -1,9 +1,9 @@
 import React, { useRef, useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { User, Shield, Smartphone, Key, LogOut, Check, Copy, ChevronRight, Camera, Upload, Mail } from 'lucide-react';
+import { User, Shield, Smartphone, Key, LogOut, Check, Copy, ChevronRight, Camera, Upload, Mail, Share2 } from 'lucide-react';
 
 export const ProfileView = () => {
-  const { user, isAdminMode, setIsAdminMode, showToastNotification, logout, updateAvatar } = useApp();
+  const { user, isAdminMode, setIsAdminMode, showToastNotification, logout, updateAvatar, setShowShareModal } = useApp();
   const [copied, setCopied] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef(null);
@@ -117,26 +117,35 @@ export const ProfileView = () => {
             {user.myReferralCode || 'ALEX-9912'}
           </p>
         </div>
-        <button
-          onClick={handleCopyCode}
-          className={`px-3 py-2 rounded-xl text-xs font-bold flex items-center space-x-1.5 transition-all ${
-            copied
-              ? 'bg-[#10B981] text-white'
-              : 'bg-[#272a2d] text-[#F2CA50] border border-[#d4af37]/30 hover:bg-[#323538]'
-          }`}
-        >
-          {copied ? (
-            <>
-              <Check className="w-3.5 h-3.5" />
-              <span>Copié</span>
-            </>
-          ) : (
-            <>
-              <Copy className="w-3.5 h-3.5" />
-              <span>Copier Code</span>
-            </>
-          )}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowShareModal(true)}
+            className="px-3 py-2 rounded-xl text-xs font-bold bg-[#F2CA50] text-black hover:brightness-110 flex items-center space-x-1.5 shadow-md active:scale-95 transition-all"
+          >
+            <Share2 className="w-3.5 h-3.5" />
+            <span>Partager</span>
+          </button>
+          <button
+            onClick={handleCopyCode}
+            className={`px-3 py-2 rounded-xl text-xs font-bold flex items-center space-x-1.5 transition-all ${
+              copied
+                ? 'bg-[#10B981] text-white'
+                : 'bg-[#272a2d] text-[#F2CA50] border border-[#d4af37]/30 hover:bg-[#323538]'
+            }`}
+          >
+            {copied ? (
+              <>
+                <Check className="w-3.5 h-3.5" />
+                <span>Copié</span>
+              </>
+            ) : (
+              <>
+                <Copy className="w-3.5 h-3.5" />
+                <span>Copier</span>
+              </>
+            )}
+          </button>
+        </div>
       </div>
 
       {/* Official Support Email Banner */}

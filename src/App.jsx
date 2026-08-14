@@ -6,6 +6,7 @@ import { Toast } from './components/Toast';
 import { ManualDepositModal } from './components/ManualDepositModal';
 import { WithdrawModal } from './components/WithdrawModal';
 import { RankSuccessModal } from './components/RankSuccessModal';
+import { ShareReferralModal } from './components/ShareReferralModal';
 import { InactivityTimer } from './components/InactivityTimer';
 import { ChatbotWidget } from './components/ChatbotWidget';
 import { InstallPWAPrompt } from './components/InstallPWAPrompt';
@@ -26,7 +27,6 @@ const MainApp = () => {
     return (
       <>
         <AuthView />
-        <ChatbotWidget />
         <InstallPWAPrompt />
         <Toast />
       </>
@@ -72,6 +72,7 @@ const MainApp = () => {
       <ManualDepositModal />
       <WithdrawModal />
       <RankSuccessModal />
+      <ShareReferralModal />
       <InactivityTimer />
       <Toast />
     </div>
