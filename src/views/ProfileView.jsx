@@ -1,9 +1,35 @@
 import React, { useRef, useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { User, Shield, Smartphone, Key, LogOut, Check, Copy, ChevronRight, Camera, Upload, Mail, Share2 } from 'lucide-react';
+import {
+  User,
+  Shield,
+  Smartphone,
+  Key,
+  LogOut,
+  Check,
+  Copy,
+  ChevronRight,
+  Camera,
+  Upload,
+  Mail,
+  Share2,
+  Settings,
+  Sliders,
+  ShieldCheck,
+  Award,
+} from 'lucide-react';
 
 export const ProfileView = () => {
-  const { user, isAdminMode, setIsAdminMode, showToastNotification, logout, updateAvatar, setShowShareModal } = useApp();
+  const {
+    user,
+    isAdminMode,
+    setIsAdminMode,
+    showToastNotification,
+    logout,
+    updateAvatar,
+    setShowShareModal,
+    setShowSettingsModal,
+  } = useApp();
   const [copied, setCopied] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef(null);
@@ -82,13 +108,6 @@ export const ProfileView = () => {
           <h2 className="text-lg font-bold text-white">{user.name || 'Membre Eco-Finance'}</h2>
           <p className="text-xs text-[#d0c5af]">{user.email}</p>
           <p className="text-xs font-mono text-[#99907c] mt-0.5">{user.phone}</p>
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            className="text-[11px] text-[#F2CA50] font-semibold hover:underline mt-1 inline-flex items-center space-x-1"
-          >
-            <Upload className="w-3 h-3" />
-            <span>{user.avatarUrl ? 'Changer la photo de profil' : 'Ajouter une photo de profil'}</span>
-          </button>
         </div>
 
         <div className="flex items-center justify-center space-x-2 pt-1">
@@ -104,6 +123,16 @@ export const ProfileView = () => {
           >
             Compte {user.status || 'INACTIF'}
           </span>
+        </div>
+
+        <div className="pt-2">
+          <button
+            onClick={() => setShowSettingsModal(true)}
+            className="w-full py-2.5 rounded-2xl bg-[#272a2d] hover:bg-[#323538] text-[#F2CA50] font-bold text-xs flex items-center justify-center space-x-2 border border-[#d4af37]/30 transition-all shadow-md active:scale-98"
+          >
+            <Settings className="w-4 h-4" />
+            <span>Ouvrir les Paramètres du Compte</span>
+          </button>
         </div>
       </div>
 
@@ -173,22 +202,10 @@ export const ProfileView = () => {
         </a>
       </div>
 
-
       {/* Account Settings List & Logout */}
       <div className="p-4 rounded-3xl bg-[#1d2022] border border-white/5 space-y-1 text-xs">
         <div
-          onClick={() => fileInputRef.current?.click()}
-          className="p-3 rounded-2xl hover:bg-[#272a2d] flex items-center justify-between text-white cursor-pointer transition-colors"
-        >
-          <div className="flex items-center space-x-3">
-            <Camera className="w-4 h-4 text-[#F2CA50]" />
-            <span>Télécharger une photo de profil</span>
-          </div>
-          <ChevronRight className="w-4 h-4 text-[#99907c]" />
-        </div>
-
-        <div
-          onClick={() => showToastNotification('Modifications du profil enregistrées')}
+          onClick={() => setShowSettingsModal(true)}
           className="p-3 rounded-2xl hover:bg-[#272a2d] flex items-center justify-between text-white cursor-pointer transition-colors"
         >
           <div className="flex items-center space-x-3">
@@ -199,23 +216,34 @@ export const ProfileView = () => {
         </div>
 
         <div
-          onClick={() => showToastNotification('Authentification 2FA configurée')}
+          onClick={() => setShowSettingsModal(true)}
           className="p-3 rounded-2xl hover:bg-[#272a2d] flex items-center justify-between text-white cursor-pointer transition-colors"
         >
           <div className="flex items-center space-x-3">
-            <Key className="w-4 h-4 text-[#F2CA50]" />
-            <span>Sécurité & Mot de passe</span>
+            <Award className="w-4 h-4 text-[#F2CA50]" />
+            <span>Détails de mon réseau MLM & Parrainage</span>
           </div>
           <ChevronRight className="w-4 h-4 text-[#99907c]" />
         </div>
 
         <div
-          onClick={() => showToastNotification('Coordonnées Mobile Money enregistrées')}
+          onClick={() => setShowSettingsModal(true)}
           className="p-3 rounded-2xl hover:bg-[#272a2d] flex items-center justify-between text-white cursor-pointer transition-colors"
         >
           <div className="flex items-center space-x-3">
             <Smartphone className="w-4 h-4 text-[#F2CA50]" />
-            <span>Mes Numéros de Retrait Par Défaut</span>
+            <span>Mes Numéros de Retrait Mobile Money</span>
+          </div>
+          <ChevronRight className="w-4 h-4 text-[#99907c]" />
+        </div>
+
+        <div
+          onClick={() => setShowSettingsModal(true)}
+          className="p-3 rounded-2xl hover:bg-[#272a2d] flex items-center justify-between text-white cursor-pointer transition-colors"
+        >
+          <div className="flex items-center space-x-3">
+            <Key className="w-4 h-4 text-[#F2CA50]" />
+            <span>Sécurité, Mot de Passe & Préférences OTP</span>
           </div>
           <ChevronRight className="w-4 h-4 text-[#99907c]" />
         </div>

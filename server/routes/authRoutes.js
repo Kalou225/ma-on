@@ -369,13 +369,24 @@ router.post('/logout', (req, res) => {
 
 // 3b. ME (GET CURRENT LOGGED IN USER)
 router.get('/me', authenticateToken, (req, res) => {
-  const user = db.prepare('SELECT id, name, email, phone, role, status, rank, balance, activation_balance, commission_balance, last_withdrawal_date, network_earnings, my_referral_code, sponsor_code, mfa_enabled, avatar_url FROM users WHERE id = ?').get(req.user.id);
+  const user = db.prepare(`
+    SELECT id, name, email, phone, role, status, rank, balance, 
+           activation_balance, commission_balance, last_withdrawal_date, 
+           network_earnings, my_referral_code, sponsor_code, mfa_enabled, 
+           avatar_url, default_payment_provider, default_payment_number, 
+           default_payment_holder, preferred_otp_channel, created_at 
+    FROM users WHERE id = ?
+  `).get(req.user.id);
+
   if (!user) {
     return res.status(404).json({ error: 'Utilisateur non trouvé' });
   }
 
   const actBal = user.activation_balance || 0;
   const commBal = user.commission_balance || 0;
+
+  // Compter le nombre de filleuls directs
+  const refCount = db.prepare('SELECT COUNT(*) as count FROM users WHERE sponsor_code = ?').get(user.my_referral_code);
 
   res.json({
     user: {
@@ -394,13 +405,106 @@ router.get('/me', authenticateToken, (req, res) => {
       networkEarnings: user.network_earnings,
       myReferralCode: user.my_referral_code,
       sponsorCode: user.sponsor_code,
+      directReferralsCount: refCount ? refCount.count : 0,
       mfaEnabled: Boolean(user.mfa_enabled),
       avatarUrl: user.avatar_url,
+      defaultPaymentProvider: user.default_payment_provider || 'Orange Money',
+      defaultPaymentNumber: user.default_payment_number || user.phone,
+      defaultPaymentHolder: user.default_payment_holder || user.name,
+      preferredOtpChannel: user.preferred_otp_channel || 'EMAIL',
+      createdAt: user.created_at,
     },
   });
 });
 
-// 3c. UPDATE AVATAR
+// 3c. UPDATE PROFILE INFO
+router.put('/profile', authenticateToken, (req, res) => {
+  const {
+    name,
+    phone,
+    defaultPaymentProvider,
+    defaultPaymentNumber,
+    defaultPaymentHolder,
+    preferredOtpChannel,
+  } = req.body;
+
+  if (name && name.trim().length < 2) {
+    return res.status(400).json({ error: 'Le nom doit comporter au moins 2 caractères.' });
+  }
+
+  const cleanName = name ? name.trim() : undefined;
+  const cleanPhone = phone ? phone.trim() : undefined;
+
+  db.prepare(`
+    UPDATE users SET
+      name = COALESCE(?, name),
+      phone = COALESCE(?, phone),
+      default_payment_provider = COALESCE(?, default_payment_provider),
+      default_payment_number = COALESCE(?, default_payment_number),
+      default_payment_holder = COALESCE(?, default_payment_holder),
+      preferred_otp_channel = COALESCE(?, preferred_otp_channel)
+    WHERE id = ?
+  `).run(
+    cleanName,
+    cleanPhone,
+    defaultPaymentProvider,
+    defaultPaymentNumber,
+    defaultPaymentHolder,
+    preferredOtpChannel,
+    req.user.id
+  );
+
+  logSecurityEvent('USER_PROFILE_UPDATED', { userId: req.user.id, ip: req.ip });
+
+  res.json({
+    message: 'Paramètres du compte mis à jour avec succès !',
+    updated: {
+      name: cleanName,
+      phone: cleanPhone,
+      defaultPaymentProvider,
+      defaultPaymentNumber,
+      defaultPaymentHolder,
+      preferredOtpChannel,
+    },
+  });
+});
+
+// 3d. CHANGE PASSWORD
+router.put('/change-password', authenticateToken, (req, res) => {
+  const { currentPassword, newPassword, confirmNewPassword } = req.body;
+
+  if (!currentPassword || !newPassword) {
+    return res.status(400).json({ error: 'Tous les champs sont requis.' });
+  }
+
+  if (newPassword.length < 8) {
+    return res.status(400).json({ error: 'Le nouveau mot de passe doit comporter au moins 8 caractères.' });
+  }
+
+  if (newPassword !== confirmNewPassword) {
+    return res.status(400).json({ error: 'La confirmation du mot de passe ne correspond pas.' });
+  }
+
+  const user = db.prepare('SELECT id, password_hash FROM users WHERE id = ?').get(req.user.id);
+  if (!user) {
+    return res.status(404).json({ error: 'Utilisateur non trouvé.' });
+  }
+
+  const isMatch = bcrypt.compareSync(currentPassword, user.password_hash);
+  if (!isMatch) {
+    logSecurityEvent('PASSWORD_CHANGE_FAILED', { userId: req.user.id, ip: req.ip, severity: 'WARNING' });
+    return res.status(400).json({ error: 'Le mot de passe actuel est incorrect.' });
+  }
+
+  const newHash = bcrypt.hashSync(newPassword, config.saltRounds);
+  db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(newHash, req.user.id);
+
+  logSecurityEvent('PASSWORD_CHANGE_SUCCESS', { userId: req.user.id, ip: req.ip, severity: 'HIGH' });
+
+  res.json({ message: 'Votre mot de passe a été modifié avec succès !' });
+});
+
+// 3e. UPDATE AVATAR
 router.post('/update-avatar', authenticateToken, (req, res) => {
   const { avatarUrl } = req.body;
   if (!avatarUrl) {

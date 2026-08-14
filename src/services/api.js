@@ -95,6 +95,20 @@ export const api = {
       return customFetch('/auth/me');
     },
 
+    updateProfile: async (profileData) => {
+      return customFetch('/auth/profile', {
+        method: 'PUT',
+        body: JSON.stringify(profileData),
+      });
+    },
+
+    changePassword: async ({ currentPassword, newPassword, confirmNewPassword }) => {
+      return customFetch('/auth/change-password', {
+        method: 'PUT',
+        body: JSON.stringify({ currentPassword, newPassword, confirmNewPassword }),
+      });
+    },
+
     updateAvatar: async (avatarUrl) => {
       return customFetch('/auth/update-avatar', {
         method: 'POST',

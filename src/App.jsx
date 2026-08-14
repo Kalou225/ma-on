@@ -20,6 +20,7 @@ import { ProfileView } from './views/ProfileView';
 import { AuthView } from './views/AuthView';
 import { AdminView } from './views/AdminView';
 import { AdminAuthView } from './views/AdminAuthView';
+import { AccountSettingsModal } from './components/AccountSettingsModal';
 
 const MainApp = () => {
   const { activeTab, isAuthenticated, isAdminMode, user } = useApp();
@@ -110,6 +111,7 @@ const MainApp = () => {
       <WithdrawModal />
       <RankSuccessModal />
       <ShareReferralModal />
+      <AccountSettingsModal />
       <InactivityTimer />
       <Toast />
     </div>

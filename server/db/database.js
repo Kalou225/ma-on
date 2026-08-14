@@ -131,6 +131,22 @@ try {
   db.exec(`ALTER TABLE users ADD COLUMN last_withdrawal_date DATETIME;`);
 } catch (e) {}
 
+try {
+  db.exec(`ALTER TABLE users ADD COLUMN default_payment_provider TEXT DEFAULT 'Orange Money';`);
+} catch (e) {}
+
+try {
+  db.exec(`ALTER TABLE users ADD COLUMN default_payment_number TEXT;`);
+} catch (e) {}
+
+try {
+  db.exec(`ALTER TABLE users ADD COLUMN default_payment_holder TEXT;`);
+} catch (e) {}
+
+try {
+  db.exec(`ALTER TABLE users ADD COLUMN preferred_otp_channel TEXT DEFAULT 'EMAIL';`);
+} catch (e) {}
+
 // Seed default Admin & User if database is empty
 const checkUser = db.prepare('SELECT count(*) as count FROM users').get();
 if (checkUser.count === 0) {

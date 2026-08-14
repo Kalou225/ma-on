@@ -355,6 +355,8 @@ export const AppProvider = ({ children }) => {
     }
   };
 
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
+
   const updateAvatar = async (avatarUrl) => {
     try {
       await api.auth.updateAvatar(avatarUrl);
@@ -363,6 +365,33 @@ export const AppProvider = ({ children }) => {
     } catch (err) {
       setUser((prev) => ({ ...prev, avatarUrl }));
       showToastNotification('Photo de profil mise à jour localement.', 'info');
+    }
+  };
+
+  const updateProfile = async (profileData) => {
+    try {
+      const res = await api.auth.updateProfile(profileData);
+      setUser((prev) => ({
+        ...prev,
+        ...profileData,
+      }));
+      showToastNotification(res.message || 'Paramètres du compte enregistrés avec succès !', 'success');
+      await refreshUserData();
+      return true;
+    } catch (err) {
+      showToastNotification(err.message || 'Erreur lors de la mise à jour des paramètres', 'error');
+      return false;
+    }
+  };
+
+  const changePassword = async (passwordData) => {
+    try {
+      const res = await api.auth.changePassword(passwordData);
+      showToastNotification(res.message || 'Mot de passe modifié avec succès !', 'success');
+      return true;
+    } catch (err) {
+      showToastNotification(err.message || 'Erreur lors du changement de mot de passe', 'error');
+      return false;
     }
   };
 
@@ -468,6 +497,10 @@ export const AppProvider = ({ children }) => {
         resetPassword,
         logout,
         updateAvatar,
+        showSettingsModal,
+        setShowSettingsModal,
+        updateProfile,
+        changePassword,
         showDepositModal,
         setShowDepositModal,
         showWithdrawModal,
