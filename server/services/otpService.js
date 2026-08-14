@@ -90,16 +90,16 @@ export const generateAndSendOtp = async ({
     console.log(`==================================================\n`);
   }
 
-  // En cas d'environnement sans SMTP configuré ou en mode démo, renvoyer simulatedCode pour permettre le test direct
+  // En cas d'erreur de distribution SMTP, d'absence de serveur ou en mode démo, renvoyer simulatedCode pour ne jamais bloquer l'utilisateur
   const hasRealSmtp = Boolean(process.env.SMTP_USER || process.env.GMAIL_USER);
-  const includeSimulated = !hasRealSmtp || process.env.NODE_ENV !== 'production';
+  const includeSimulated = emailDispatchResult.simulated || !hasRealSmtp || process.env.NODE_ENV !== 'production';
 
   return {
     success: true,
     message: chosenChannel === 'EMAIL'
       ? (emailDispatchResult.sent && !emailDispatchResult.simulated
           ? `Code de confirmation envoyé par Email à ${cleanIdentifier}.`
-          : `Code généré pour ${cleanIdentifier}. (Vérifiez votre boîte de réception ou le code d'assistance)`)
+          : `Code généré pour ${cleanIdentifier}.`)
       : `Code de confirmation SMS envoyé au ${cleanIdentifier}.`,
     identifier: cleanIdentifier,
     channel: chosenChannel,

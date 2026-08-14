@@ -1,5 +1,12 @@
 import express from 'express';
+import dns from 'dns';
 import cookieParser from 'cookie-parser';
+
+// Force la résolution DNS IPv4 en priorité sur tous les conteneurs cloud (Render.com, AWS, etc.)
+try {
+  dns.setDefaultResultOrder('ipv4first');
+} catch (e) {}
+
 import { config } from './config/security.js';
 import { configureSecurityHeaders } from './middleware/securityMiddleware.js';
 import { globalRateLimiter } from './middleware/rateLimiter.js';

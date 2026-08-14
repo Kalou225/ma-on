@@ -1,46 +1,53 @@
 import nodemailer from 'nodemailer';
+import dns from 'dns';
 import { logSecurityEvent } from './auditLogger.js';
 
+// Forcer la résolution DNS en IPv4 en priorité pour éviter l'erreur ENETUNREACH sur les conteneurs cloud (Render, AWS, etc.)
+try {
+  dns.setDefaultResultOrder('ipv4first');
+} catch (e) {}
+
 /**
- * Service d'envoi d'e-mails transactionnels (OTP) pour Eco-Finance
+ * Service d'envoi d'e-mails transactionnels (OTP) ultra-robuste pour Eco-Finance
  */
 
-// Configuration du transporteur SMTP (Gmail, Brevo, Resend, OVH, SendGrid ou SMTP personnalisé)
-let transporter = null;
-
-const createTransporter = () => {
-  const host = process.env.SMTP_HOST;
+const getSmtpCredentials = () => {
+  const user = (process.env.SMTP_USER || process.env.GMAIL_USER || '').trim();
+  const pass = (process.env.SMTP_PASS || process.env.GMAIL_APP_PASSWORD || process.env.GMAIL_PASS || '').trim();
+  const host = (process.env.SMTP_HOST || (user.includes('@gmail.com') ? 'smtp.gmail.com' : '')).trim();
   const port = parseInt(process.env.SMTP_PORT || '587', 10);
-  const user = process.env.SMTP_USER || process.env.GMAIL_USER;
-  const pass = process.env.SMTP_PASS || process.env.GMAIL_APP_PASSWORD || process.env.GMAIL_PASS;
+  const from = (process.env.SMTP_FROM || `"Eco-Finance Sécurité" <${user || 'no-reply@eco-finance.ci'}>`).trim();
 
-  if (user && pass) {
-    if (process.env.GMAIL_USER || (host && host.includes('gmail.com'))) {
-      return nodemailer.createTransport({
-        service: 'gmail',
-        auth: {
-          user,
-          pass,
-        },
-      });
-    }
-
-    return nodemailer.createTransport({
-      host: host || 'smtp.gmail.com',
-      port: port || 587,
-      secure: port === 465,
-      auth: {
-        user,
-        pass,
-      },
-    });
-  }
-
-  return null;
+  return { user, pass, host: host || 'smtp.gmail.com', port, from };
 };
 
 /**
- * Envoie un code OTP par email avec un template HTML professionnel Eco-Finance
+ * Crée un transporteur Nodemailer avec forcing IPv4 et timeouts adaptés au cloud
+ */
+const createTransporter = (host, port, user, pass) => {
+  const isSslPort = port === 465;
+
+  return nodemailer.createTransport({
+    host: host || 'smtp.gmail.com',
+    port: port || (isSslPort ? 465 : 587),
+    secure: isSslPort, // true pour port 465, false pour port 587 (STARTTLS)
+    family: 4, // ⭐ CRITIQUE : Force IPv4 pour éliminer l'erreur ENETUNREACH IPv6 sur Render
+    auth: {
+      user,
+      pass,
+    },
+    tls: {
+      rejectUnauthorized: false, // Évite les rejets de certificats dans les proxys cloud
+      ciphers: 'SSLv3',
+    },
+    connectionTimeout: 10000, // 10s
+    greetingTimeout: 8000,
+    socketTimeout: 15000,
+  });
+};
+
+/**
+ * Envoie un code OTP par email avec template HTML Eco-Finance et gestion de secours
  * @param {Object} options
  * @param {string} options.to - Adresse email du destinataire
  * @param {string} options.otpCode - Code de confirmation à 6 chiffres
@@ -48,13 +55,14 @@ const createTransporter = () => {
  * @param {string} [options.subject] - Objet du message
  * @returns {Promise<{ sent: boolean, error?: string, simulated: boolean }>}
  */
-export const sendOtpEmail = async ({ to, otpCode, name = 'Cher Membre', subject = 'Votre code de confirmation Eco-Finance' }) => {
+export const sendOtpEmail = async ({
+  to,
+  otpCode,
+  name = 'Cher Membre',
+  subject = 'Votre code de confirmation Eco-Finance',
+}) => {
   const cleanEmail = to.trim().toLowerCase();
-  const fromEmail = process.env.SMTP_FROM || `"Eco-Finance Sécurité" <${process.env.SMTP_USER || 'no-reply@eco-finance.ci'}>`;
-
-  if (!transporter) {
-    transporter = createTransporter();
-  }
+  const { user, pass, host, port, from } = getSmtpCredentials();
 
   const htmlContent = `
     <!DOCTYPE html>
@@ -87,7 +95,7 @@ export const sendOtpEmail = async ({ to, otpCode, name = 'Cher Membre', subject 
 
         <p class="greeting">Bonjour <strong>${name}</strong>,</p>
         <p class="message">
-          Vous avez demandé un code de vérification sécurisé pour valider votre compte ou votre action sur la plateforme Eco-Finance.
+          Vous avez demandé un code de vérification sécurisé pour valider votre compte sur la plateforme Eco-Finance.
         </p>
 
         <div class="otp-box">
@@ -110,10 +118,13 @@ export const sendOtpEmail = async ({ to, otpCode, name = 'Cher Membre', subject 
 
   const textContent = `Bonjour ${name},\n\nVotre code de confirmation Eco-Finance est : ${otpCode}\n\nCe code est valable 10 minutes. Ne le communiquez à personne.\n\nEco-Finance Sécurité`;
 
-  if (transporter) {
+  // Si des identifiants SMTP sont fournis
+  if (user && pass) {
+    // 1ère tentative : port configuré ou standard 587 avec IPv4
     try {
-      await transporter.sendMail({
-        from: fromEmail,
+      const primaryTransporter = createTransporter(host, port || 587, user, pass);
+      await primaryTransporter.sendMail({
+        from,
         to: cleanEmail,
         subject: `[Eco-Finance] Code de confirmation : ${otpCode}`,
         text: textContent,
@@ -121,27 +132,50 @@ export const sendOtpEmail = async ({ to, otpCode, name = 'Cher Membre', subject 
       });
 
       logSecurityEvent('EMAIL_SENT_SUCCESS', {
-        details: { email: cleanEmail, subject },
+        details: { email: cleanEmail, subject, port: port || 587 },
         severity: 'INFO',
       });
 
-      console.log(`✅ [EMAIL DISPATCHED VIA SMTP] Envoyé à ${cleanEmail} avec le code ${otpCode}`);
+      console.log(`✅ [EMAIL DISPATCHED VIA SMTP IPv4] Envoyé avec succès à ${cleanEmail} (Code: ${otpCode})`);
       return { sent: true, simulated: false };
-    } catch (error) {
-      console.error(`❌ [EMAIL SMTP ERROR] Échec de l'envoi à ${cleanEmail} :`, error.message);
-      logSecurityEvent('EMAIL_SENT_FAILURE', {
-        details: { email: cleanEmail, error: error.message },
-        severity: 'WARNING',
-      });
-      return { sent: false, error: error.message, simulated: true };
+    } catch (primaryError) {
+      console.warn(`⚠️ [SMTP Tentative 1 Échouée (${port || 587})] : ${primaryError.message}. Tentative sur port alternatif 465 (IPv4)...`);
+
+      // 2ème tentative : port alternatif 465 (SSL avec IPv4 forcé)
+      try {
+        const altTransporter = createTransporter(host, 465, user, pass);
+        await altTransporter.sendMail({
+          from,
+          to: cleanEmail,
+          subject: `[Eco-Finance] Code de confirmation : ${otpCode}`,
+          text: textContent,
+          html: htmlContent,
+        });
+
+        logSecurityEvent('EMAIL_SENT_SUCCESS', {
+          details: { email: cleanEmail, subject, port: 465 },
+          severity: 'INFO',
+        });
+
+        console.log(`✅ [EMAIL DISPATCHED VIA SMTP 465 IPv4] Envoyé avec succès à ${cleanEmail} (Code: ${otpCode})`);
+        return { sent: true, simulated: false };
+      } catch (secondaryError) {
+        console.error(`❌ [EMAIL SMTP ERROR DÉFINITIF] Échec de l'envoi à ${cleanEmail} :`, secondaryError.message);
+        logSecurityEvent('EMAIL_SENT_FAILURE', {
+          details: { email: cleanEmail, error: secondaryError.message },
+          severity: 'WARNING',
+        });
+
+        return { sent: false, error: secondaryError.message, simulated: true };
+      }
     }
   } else {
-    // Si aucun SMTP n'est encore configuré dans les variables d'environnement sur Render
+    // Si aucun SMTP n'est configuré
     console.log(`\n==================================================`);
     console.log(`📧 [EMAIL ECO-FINANCE SIMULATION - SMTP NON CONFIGURÉ]`);
     console.log(`Destinataire : ${cleanEmail} (${name})`);
     console.log(`Code OTP     : ${otpCode}`);
-    console.log(`Astuce       : Configurez SMTP_USER et SMTP_PASS sur Render pour envoyer de vrais emails vers Gmail/Outlook.`);
+    console.log(`Astuce       : Définissez GMAIL_USER et GMAIL_APP_PASSWORD sur Render pour envoyer de vrais emails.`);
     console.log(`==================================================\n`);
     return { sent: true, simulated: true };
   }
