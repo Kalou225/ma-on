@@ -33,6 +33,8 @@ export const AccountSettingsModal = () => {
     user,
     showSettingsModal,
     setShowSettingsModal,
+    settingsTab,
+    setSettingsTab,
     updateProfile,
     changePassword,
     updateAvatar,
@@ -40,7 +42,8 @@ export const AccountSettingsModal = () => {
     showToastNotification,
   } = useApp();
 
-  const [activeTab, setActiveTab] = useState('profile'); // 'profile' | 'mlm' | 'payment' | 'security'
+  const activeTab = settingsTab || 'profile';
+  const setActiveTab = setSettingsTab;
   const fileInputRef = useRef(null);
   const [isUploading, setIsUploading] = useState(false);
   const [copied, setCopied] = useState(false);

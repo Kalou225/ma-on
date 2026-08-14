@@ -28,7 +28,7 @@ export const ProfileView = () => {
     logout,
     updateAvatar,
     setShowShareModal,
-    setShowSettingsModal,
+    openSettings,
   } = useApp();
   const [copied, setCopied] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -127,7 +127,7 @@ export const ProfileView = () => {
 
         <div className="pt-2">
           <button
-            onClick={() => setShowSettingsModal(true)}
+            onClick={() => openSettings('profile')}
             className="w-full py-2.5 rounded-2xl bg-[#272a2d] hover:bg-[#323538] text-[#F2CA50] font-bold text-xs flex items-center justify-center space-x-2 border border-[#d4af37]/30 transition-all shadow-md active:scale-98"
           >
             <Settings className="w-4 h-4" />
@@ -205,7 +205,7 @@ export const ProfileView = () => {
       {/* Account Settings List & Logout */}
       <div className="p-4 rounded-3xl bg-[#1d2022] border border-white/5 space-y-1 text-xs">
         <div
-          onClick={() => setShowSettingsModal(true)}
+          onClick={() => openSettings('profile')}
           className="p-3 rounded-2xl hover:bg-[#272a2d] flex items-center justify-between text-white cursor-pointer transition-colors"
         >
           <div className="flex items-center space-x-3">
@@ -216,7 +216,7 @@ export const ProfileView = () => {
         </div>
 
         <div
-          onClick={() => setShowSettingsModal(true)}
+          onClick={() => openSettings('mlm')}
           className="p-3 rounded-2xl hover:bg-[#272a2d] flex items-center justify-between text-white cursor-pointer transition-colors"
         >
           <div className="flex items-center space-x-3">
@@ -227,7 +227,7 @@ export const ProfileView = () => {
         </div>
 
         <div
-          onClick={() => setShowSettingsModal(true)}
+          onClick={() => openSettings('payment')}
           className="p-3 rounded-2xl hover:bg-[#272a2d] flex items-center justify-between text-white cursor-pointer transition-colors"
         >
           <div className="flex items-center space-x-3">
@@ -238,7 +238,7 @@ export const ProfileView = () => {
         </div>
 
         <div
-          onClick={() => setShowSettingsModal(true)}
+          onClick={() => openSettings('security')}
           className="p-3 rounded-2xl hover:bg-[#272a2d] flex items-center justify-between text-white cursor-pointer transition-colors"
         >
           <div className="flex items-center space-x-3">

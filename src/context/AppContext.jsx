@@ -356,6 +356,12 @@ export const AppProvider = ({ children }) => {
   };
 
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [settingsTab, setSettingsTab] = useState('profile');
+
+  const openSettings = (tab = 'profile') => {
+    setSettingsTab(tab);
+    setShowSettingsModal(true);
+  };
 
   const updateAvatar = async (avatarUrl) => {
     try {
@@ -499,6 +505,9 @@ export const AppProvider = ({ children }) => {
         updateAvatar,
         showSettingsModal,
         setShowSettingsModal,
+        settingsTab,
+        setSettingsTab,
+        openSettings,
         updateProfile,
         changePassword,
         showDepositModal,

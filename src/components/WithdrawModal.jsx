@@ -6,9 +6,17 @@ export const WithdrawModal = () => {
   const { showWithdrawModal, setShowWithdrawModal, requestWithdrawal, user } = useApp();
 
   const [amount, setAmount] = useState('');
-  const [provider, setProvider] = useState('Orange Money');
-  const [phone, setPhone] = useState(user.phone || '');
+  const [provider, setProvider] = useState(user.defaultPaymentProvider || 'Orange Money');
+  const [phone, setPhone] = useState(user.defaultPaymentNumber || user.phone || '');
   const [error, setError] = useState('');
+
+  React.useEffect(() => {
+    if (showWithdrawModal && user) {
+      if (user.defaultPaymentProvider) setProvider(user.defaultPaymentProvider);
+      if (user.defaultPaymentNumber) setPhone(user.defaultPaymentNumber);
+      else if (user.phone) setPhone(user.phone);
+    }
+  }, [showWithdrawModal, user]);
 
   const maxWithdrawable = Math.floor((user.activationBalance || 0) / 3);
   const commBalance = user.commissionBalance || user.balance || 0;
