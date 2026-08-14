@@ -2,13 +2,17 @@ import nodemailer from 'nodemailer';
 import dns from 'dns';
 import { logSecurityEvent } from './auditLogger.js';
 
-// Forcer la résolution DNS en IPv4 en priorité pour éviter l'erreur ENETUNREACH sur les conteneurs cloud (Render, AWS, etc.)
+// Force la résolution IPv4 en priorité
 try {
   dns.setDefaultResultOrder('ipv4first');
 } catch (e) {}
 
 /**
  * Service d'envoi d'e-mails transactionnels (OTP) ultra-robuste pour Eco-Finance
+ * Compatible avec :
+ * 1. HTTPS REST API (Resend, Brevo, SendGrid) -> 100% insensible aux blocages de ports sur Render
+ * 2. SMTP Standard / Gmail / Brevo (Ports 587, 2525, 465)
+ * 3. Fallback immédiat avec code de secours sans freeze
  */
 
 const getSmtpCredentials = () => {
@@ -16,13 +20,73 @@ const getSmtpCredentials = () => {
   const pass = (process.env.SMTP_PASS || process.env.GMAIL_APP_PASSWORD || process.env.GMAIL_PASS || '').trim();
   const host = (process.env.SMTP_HOST || (user.includes('@gmail.com') ? 'smtp.gmail.com' : '')).trim();
   const port = parseInt(process.env.SMTP_PORT || '587', 10);
-  const from = (process.env.SMTP_FROM || `"Eco-Finance Sécurité" <${user || 'no-reply@eco-finance.ci'}>`).trim();
+  const from = (process.env.SMTP_FROM || process.env.EMAIL_FROM || `"Eco-Finance Sécurité" <${user || 'no-reply@eco-finance.ci'}>`).trim();
 
-  return { user, pass, host: host || 'smtp.gmail.com', port, from };
+  const resendApiKey = (process.env.RESEND_API_KEY || '').trim();
+  const brevoApiKey = (process.env.BREVO_API_KEY || '').trim();
+  const sendgridApiKey = (process.env.SENDGRID_API_KEY || '').trim();
+
+  return { user, pass, host: host || 'smtp.gmail.com', port, from, resendApiKey, brevoApiKey, sendgridApiKey };
 };
 
 /**
- * Crée un transporteur Nodemailer avec forcing IPv4 et timeouts adaptés au cloud
+ * Envoi via API HTTPS Resend (Port 443 - Jamais bloqué sur Render)
+ */
+const sendViaResendApi = async (apiKey, from, to, subject, html, text) => {
+  const fromEmail = from.includes('<') ? from : `Eco-Finance Sécurité <${from || 'onboarding@resend.dev'}>`;
+  const res = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      from: fromEmail.includes('@') ? fromEmail : 'Eco-Finance <onboarding@resend.dev>',
+      to: [to],
+      subject,
+      html,
+      text,
+    }),
+  });
+
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.message || `Resend API Error HTTP ${res.status}`);
+  }
+
+  return await res.json();
+};
+
+/**
+ * Envoi via API HTTPS Brevo (Port 443 - Jamais bloqué sur Render)
+ */
+const sendViaBrevoApi = async (apiKey, from, to, name, subject, html, text) => {
+  const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+    method: 'POST',
+    headers: {
+      'api-key': apiKey,
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    },
+    body: JSON.stringify({
+      sender: { name: 'Eco-Finance Sécurité', email: process.env.SMTP_USER || 'no-reply@eco-finance.ci' },
+      to: [{ email: to, name: name || 'Membre' }],
+      subject,
+      htmlContent: html,
+      textContent: text,
+    }),
+  });
+
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.message || `Brevo API Error HTTP ${res.status}`);
+  }
+
+  return await res.json();
+};
+
+/**
+ * Crée un transporteur Nodemailer avec timeout court pour éviter les blocages de l'interface
  */
 const createTransporter = (host, port, user, pass) => {
   const isSslPort = port === 465;
@@ -30,24 +94,23 @@ const createTransporter = (host, port, user, pass) => {
   return nodemailer.createTransport({
     host: host || 'smtp.gmail.com',
     port: port || (isSslPort ? 465 : 587),
-    secure: isSslPort, // true pour port 465, false pour port 587 (STARTTLS)
-    family: 4, // ⭐ CRITIQUE : Force IPv4 pour éliminer l'erreur ENETUNREACH IPv6 sur Render
+    secure: isSslPort,
+    family: 4, // Force IPv4
     auth: {
       user,
       pass,
     },
     tls: {
-      rejectUnauthorized: false, // Évite les rejets de certificats dans les proxys cloud
-      ciphers: 'SSLv3',
+      rejectUnauthorized: false,
     },
-    connectionTimeout: 10000, // 10s
-    greetingTimeout: 8000,
-    socketTimeout: 15000,
+    connectionTimeout: 3500, // 3.5s max pour ne pas bloquer l'utilisateur
+    greetingTimeout: 3000,
+    socketTimeout: 5000,
   });
 };
 
 /**
- * Envoie un code OTP par email avec template HTML Eco-Finance et gestion de secours
+ * Envoie un code OTP par email avec support HTTPS API et SMTP
  * @param {Object} options
  * @param {string} options.to - Adresse email du destinataire
  * @param {string} options.otpCode - Code de confirmation à 6 chiffres
@@ -62,7 +125,7 @@ export const sendOtpEmail = async ({
   subject = 'Votre code de confirmation Eco-Finance',
 }) => {
   const cleanEmail = to.trim().toLowerCase();
-  const { user, pass, host, port, from } = getSmtpCredentials();
+  const { user, pass, host, port, from, resendApiKey, brevoApiKey } = getSmtpCredentials();
 
   const htmlContent = `
     <!DOCTYPE html>
@@ -116,67 +179,65 @@ export const sendOtpEmail = async ({
     </html>
   `;
 
+  const emailSubject = `[Eco-Finance] Code de confirmation : ${otpCode}`;
   const textContent = `Bonjour ${name},\n\nVotre code de confirmation Eco-Finance est : ${otpCode}\n\nCe code est valable 10 minutes. Ne le communiquez à personne.\n\nEco-Finance Sécurité`;
 
-  // Si des identifiants SMTP sont fournis
-  if (user && pass) {
-    // 1ère tentative : port configuré ou standard 587 avec IPv4
+  // OPTION 1 : Envoi via Resend API HTTPS (Recommandé sur Render)
+  if (resendApiKey) {
     try {
-      const primaryTransporter = createTransporter(host, port || 587, user, pass);
-      await primaryTransporter.sendMail({
-        from,
-        to: cleanEmail,
-        subject: `[Eco-Finance] Code de confirmation : ${otpCode}`,
-        text: textContent,
-        html: htmlContent,
-      });
-
-      logSecurityEvent('EMAIL_SENT_SUCCESS', {
-        details: { email: cleanEmail, subject, port: port || 587 },
-        severity: 'INFO',
-      });
-
-      console.log(`✅ [EMAIL DISPATCHED VIA SMTP IPv4] Envoyé avec succès à ${cleanEmail} (Code: ${otpCode})`);
+      await sendViaResendApi(resendApiKey, from, cleanEmail, emailSubject, htmlContent, textContent);
+      logSecurityEvent('EMAIL_SENT_HTTPS_SUCCESS', { details: { email: cleanEmail, provider: 'Resend' }, severity: 'INFO' });
+      console.log(`✅ [EMAIL DISPATCHED VIA RESEND HTTPS API] Envoyé avec succès à ${cleanEmail} (Code: ${otpCode})`);
       return { sent: true, simulated: false };
-    } catch (primaryError) {
-      console.warn(`⚠️ [SMTP Tentative 1 Échouée (${port || 587})] : ${primaryError.message}. Tentative sur port alternatif 465 (IPv4)...`);
+    } catch (apiError) {
+      console.warn(`⚠️ [RESEND API ERROR] : ${apiError.message}`);
+    }
+  }
 
-      // 2ème tentative : port alternatif 465 (SSL avec IPv4 forcé)
+  // OPTION 2 : Envoi via Brevo API HTTPS (Port 443)
+  if (brevoApiKey) {
+    try {
+      await sendViaBrevoApi(brevoApiKey, from, cleanEmail, name, emailSubject, htmlContent, textContent);
+      logSecurityEvent('EMAIL_SENT_HTTPS_SUCCESS', { details: { email: cleanEmail, provider: 'Brevo' }, severity: 'INFO' });
+      console.log(`✅ [EMAIL DISPATCHED VIA BREVO HTTPS API] Envoyé avec succès à ${cleanEmail} (Code: ${otpCode})`);
+      return { sent: true, simulated: false };
+    } catch (apiError) {
+      console.warn(`⚠️ [BREVO API ERROR] : ${apiError.message}`);
+    }
+  }
+
+  // OPTION 3 : SMTP Standard avec ports alternatifs et timeout court
+  if (user && pass) {
+    const portsToTry = [port || 587, 2525, 465];
+    for (const testPort of portsToTry) {
       try {
-        const altTransporter = createTransporter(host, 465, user, pass);
-        await altTransporter.sendMail({
+        const transporter = createTransporter(host, testPort, user, pass);
+        await transporter.sendMail({
           from,
           to: cleanEmail,
-          subject: `[Eco-Finance] Code de confirmation : ${otpCode}`,
+          subject: emailSubject,
           text: textContent,
           html: htmlContent,
         });
 
-        logSecurityEvent('EMAIL_SENT_SUCCESS', {
-          details: { email: cleanEmail, subject, port: 465 },
-          severity: 'INFO',
-        });
-
-        console.log(`✅ [EMAIL DISPATCHED VIA SMTP 465 IPv4] Envoyé avec succès à ${cleanEmail} (Code: ${otpCode})`);
+        logSecurityEvent('EMAIL_SENT_SMTP_SUCCESS', { details: { email: cleanEmail, port: testPort }, severity: 'INFO' });
+        console.log(`✅ [EMAIL DISPATCHED VIA SMTP PORT ${testPort}] Envoyé avec succès à ${cleanEmail} (Code: ${otpCode})`);
         return { sent: true, simulated: false };
-      } catch (secondaryError) {
-        console.error(`❌ [EMAIL SMTP ERROR DÉFINITIF] Échec de l'envoi à ${cleanEmail} :`, secondaryError.message);
-        logSecurityEvent('EMAIL_SENT_FAILURE', {
-          details: { email: cleanEmail, error: secondaryError.message },
-          severity: 'WARNING',
-        });
-
-        return { sent: false, error: secondaryError.message, simulated: true };
+      } catch (smtpError) {
+        console.warn(`⚠️ [SMTP Port ${testPort} Timeout / Échec] : ${smtpError.message}`);
       }
     }
-  } else {
-    // Si aucun SMTP n'est configuré
-    console.log(`\n==================================================`);
-    console.log(`📧 [EMAIL ECO-FINANCE SIMULATION - SMTP NON CONFIGURÉ]`);
-    console.log(`Destinataire : ${cleanEmail} (${name})`);
-    console.log(`Code OTP     : ${otpCode}`);
-    console.log(`Astuce       : Définissez GMAIL_USER et GMAIL_APP_PASSWORD sur Render pour envoyer de vrais emails.`);
-    console.log(`==================================================\n`);
-    return { sent: true, simulated: true };
   }
+
+  // REPLI AUTOMATIQUE (FALLBACK) :
+  // Si Render bloque les ports sortants ou qu'aucun SMTP/API n'a réussi,
+  // on journalise et on renvoie le mode simulé pour que l'utilisateur reçoive le code dans son interface sans blocage
+  console.log(`\n==================================================`);
+  console.log(`📧 [EMAIL ECO-FINANCE MODE SECOURS ACTIF]`);
+  console.log(`Destinataire : ${cleanEmail} (${name})`);
+  console.log(`Code OTP     : ${otpCode}`);
+  console.log(`Astuce       : Les ports SMTP sont souvent bloqués sur Render. Ajoutez RESEND_API_KEY ou BREVO_API_KEY sur Render pour l'envoi HTTPS direct.`);
+  console.log(`==================================================\n`);
+
+  return { sent: false, simulated: true, error: 'Port SMTP filtré par l\'hébergeur cloud' };
 };
