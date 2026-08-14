@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import db from '../db/database.js';
 import { logSecurityEvent } from './auditLogger.js';
+import { sendOtpEmail } from './emailService.js';
 
 /**
  * Service de gestion unifié des codes OTP (Email & SMS + WebOTP API) pour Eco-Finance
@@ -61,6 +62,8 @@ export const generateAndSendOtp = async ({
   // Formatage du message standard WebOTP pour navigateurs mobiles
   const webOtpFormattedSms = `Votre code de confirmation Eco-Finance est : ${otpCode}.\n\n@${origin} #${otpCode}`;
 
+  let emailDispatchResult = { sent: false, simulated: true };
+
   if (chosenChannel === 'EMAIL') {
     // Journalisation d'audit de sécurité
     logSecurityEvent('EMAIL_OTP_GENERATED', {
@@ -68,13 +71,12 @@ export const generateAndSendOtp = async ({
       severity: 'INFO',
     });
 
-    console.log(`\n==================================================`);
-    console.log(`📧 [EMAIL ECO-FINANCE CONFIRMATION OTP]`);
-    console.log(`Destinataire : ${cleanIdentifier} (${name || 'Membre'})`);
-    console.log(`Code OTP     : ${otpCode}`);
-    console.log(`Objet        : "Votre code de confirmation Eco-Finance : ${otpCode}"`);
-    console.log(`Message WebOTP API compatible : "${otpCode}" (Valable 10 minutes)`);
-    console.log(`==================================================\n`);
+    // Envoi réel par email via le transporteur SMTP
+    emailDispatchResult = await sendOtpEmail({
+      to: cleanIdentifier,
+      otpCode,
+      name: name || 'Membre',
+    });
   } else {
     logSecurityEvent('PHONE_OTP_GENERATED', {
       details: { phone: cleanIdentifier, email, expiresAt },
@@ -88,14 +90,20 @@ export const generateAndSendOtp = async ({
     console.log(`==================================================\n`);
   }
 
+  // En cas d'environnement sans SMTP configuré ou en mode démo, renvoyer simulatedCode pour permettre le test direct
+  const hasRealSmtp = Boolean(process.env.SMTP_USER || process.env.GMAIL_USER);
+  const includeSimulated = !hasRealSmtp || process.env.NODE_ENV !== 'production';
+
   return {
     success: true,
     message: chosenChannel === 'EMAIL'
-      ? `Code de confirmation envoyé par Email à l'adresse ${cleanIdentifier}.`
+      ? (emailDispatchResult.sent && !emailDispatchResult.simulated
+          ? `Code de confirmation envoyé par Email à ${cleanIdentifier}.`
+          : `Code généré pour ${cleanIdentifier}. (Vérifiez votre boîte de réception ou le code d'assistance)`)
       : `Code de confirmation SMS envoyé au ${cleanIdentifier}.`,
     identifier: cleanIdentifier,
     channel: chosenChannel,
-    simulatedCode: process.env.NODE_ENV !== 'production' ? otpCode : undefined,
+    simulatedCode: includeSimulated ? otpCode : undefined,
     webOtpMessage: webOtpFormattedSms,
     expiresAt,
   };
