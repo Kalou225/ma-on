@@ -16,6 +16,14 @@ import {
   Trash2,
   X,
   AlertTriangle,
+  Users,
+  Search,
+  Award,
+  DollarSign,
+  UserCheck,
+  UserX,
+  Calendar,
+  Share2,
 } from 'lucide-react';
 import { api } from '../services/api';
 
@@ -39,12 +47,17 @@ export const AdminView = () => {
     setIsAdminMode,
   } = useApp();
 
-  const [activeAdminTab, setActiveAdminTab] = useState('deposits'); // 'deposits' | 'withdrawals' | 'numbers' | 'logs'
+  const [activeAdminTab, setActiveAdminTab] = useState('deposits'); // 'deposits' | 'withdrawals' | 'users' | 'numbers' | 'logs'
   const [showAddNumberModal, setShowAddNumberModal] = useState(false);
   const [editingNumber, setEditingNumber] = useState(null); // { id, provider, number, holder, icon, active }
   const [deletingNumber, setDeletingNumber] = useState(null); // { id, provider, number, holder }
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [auditLogs, setAuditLogs] = useState([]);
+
+  // Users Directory State
+  const [usersList, setUsersList] = useState([]);
+  const [userSearch, setUserSearch] = useState('');
+  const [userStatusFilter, setUserStatusFilter] = useState('ALL'); // 'ALL' | 'ACTIF' | 'INACTIF'
 
   // New Payment Number Form State
   const [provider, setProvider] = useState('Orange Money');
@@ -65,14 +78,23 @@ export const AdminView = () => {
     } catch (e) {}
   };
 
+  const fetchUsers = async () => {
+    try {
+      const data = await api.admin.getUsers();
+      if (Array.isArray(data)) setUsersList(data);
+    } catch (e) {}
+  };
+
   useEffect(() => {
     fetchLogs();
+    fetchUsers();
   }, []);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
     await refreshUserData();
     await fetchLogs();
+    await fetchUsers();
     setIsRefreshing(false);
   };
 
@@ -206,6 +228,18 @@ export const AdminView = () => {
           >
             <ArrowUpRight className="w-3.5 h-3.5" />
             <span>Retraits ({allPendingWithdrawals.length})</span>
+          </button>
+
+          <button
+            onClick={() => setActiveAdminTab('users')}
+            className={`px-3 py-2 rounded-xl font-bold flex items-center space-x-1.5 whitespace-nowrap transition-all ${
+              activeAdminTab === 'users'
+                ? 'bg-[#E63946] text-white shadow-md'
+                : 'bg-[#191c1e] text-[#99907c] hover:text-white'
+            }`}
+          >
+            <Users className="w-3.5 h-3.5" />
+            <span>Utilisateurs ({usersList.length})</span>
           </button>
 
           <button
@@ -399,7 +433,200 @@ export const AdminView = () => {
           </div>
         )}
 
-        {/* TAB 3: PAYMENT RECEPTION NUMBERS */}
+        {/* TAB 3: USERS & MEMBERS DIRECTORY */}
+        {activeAdminTab === 'users' && (
+          <div className="space-y-4 animate-in fade-in">
+            {/* Summary Statistics */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+              <div className="p-3.5 rounded-2xl bg-[#1d2022] border border-white/5 space-y-1">
+                <span className="text-[10px] text-[#99907c] uppercase tracking-wider font-semibold block">
+                  Total Inscrits
+                </span>
+                <p className="text-lg font-mono font-bold text-white">{usersList.length}</p>
+                <span className="text-[9px] text-[#F2CA50]">Membres & Admins</span>
+              </div>
+
+              <div className="p-3.5 rounded-2xl bg-[#1d2022] border border-white/5 space-y-1">
+                <span className="text-[10px] text-[#99907c] uppercase tracking-wider font-semibold block">
+                  Comptes Actifs
+                </span>
+                <p className="text-lg font-mono font-bold text-[#10B981]">
+                  {usersList.filter((u) => u.status === 'ACTIF').length}
+                </p>
+                <span className="text-[9px] text-[#99907c]">
+                  {usersList.filter((u) => u.status !== 'ACTIF').length} inactifs
+                </span>
+              </div>
+
+              <div className="p-3.5 rounded-2xl bg-[#1d2022] border border-white/5 space-y-1">
+                <span className="text-[10px] text-[#99907c] uppercase tracking-wider font-semibold block">
+                  Total Activation
+                </span>
+                <p className="text-sm font-mono font-bold text-white truncate">
+                  {usersList.reduce((acc, u) => acc + (u.activation_balance || 0), 0).toLocaleString()} <span className="text-[9px]">F</span>
+                </p>
+                <span className="text-[9px] text-[#10B981]">Fonds injectés</span>
+              </div>
+
+              <div className="p-3.5 rounded-2xl bg-[#1d2022] border border-white/5 space-y-1">
+                <span className="text-[10px] text-[#99907c] uppercase tracking-wider font-semibold block">
+                  Gains Réseau Total
+                </span>
+                <p className="text-sm font-mono font-bold text-[#F2CA50] truncate">
+                  {usersList.reduce((acc, u) => acc + (u.network_earnings || 0), 0).toLocaleString()} <span className="text-[9px]">F</span>
+                </p>
+                <span className="text-[9px] text-[#d0c5af]">Distribué MLM</span>
+              </div>
+            </div>
+
+            {/* Search and Filters Bar */}
+            <div className="p-3 rounded-2xl bg-[#191c1e] border border-white/10 flex flex-col sm:flex-row gap-2.5 items-stretch sm:items-center justify-between">
+              <div className="relative flex-1">
+                <Search className="w-3.5 h-3.5 text-[#99907c] absolute left-3 top-3" />
+                <input
+                  type="text"
+                  value={userSearch}
+                  onChange={(e) => setUserSearch(e.target.value)}
+                  placeholder="Rechercher par nom, email, téléphone, code parrain..."
+                  className="w-full bg-[#101416] border border-white/10 rounded-xl pl-9 pr-3 py-2 text-xs text-white outline-none focus:border-[#E63946]"
+                />
+              </div>
+
+              <div className="flex space-x-1 shrink-0">
+                {['ALL', 'ACTIF', 'INACTIF'].map((st) => (
+                  <button
+                    key={st}
+                    onClick={() => setUserStatusFilter(st)}
+                    className={`px-3 py-2 rounded-xl text-xs font-bold transition-all ${
+                      userStatusFilter === st
+                        ? 'bg-[#E63946] text-white shadow'
+                        : 'bg-[#101416] text-[#99907c] hover:text-white border border-white/5'
+                    }`}
+                  >
+                    {st === 'ALL' ? 'Tous' : st === 'ACTIF' ? 'Actifs' : 'Inactifs'}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Users List Cards */}
+            <div className="space-y-3">
+              {usersList
+                .filter((u) => {
+                  const q = userSearch.toLowerCase().trim();
+                  const matchQ =
+                    !q ||
+                    u.name?.toLowerCase().includes(q) ||
+                    u.email?.toLowerCase().includes(q) ||
+                    u.phone?.toLowerCase().includes(q) ||
+                    u.my_referral_code?.toLowerCase().includes(q) ||
+                    u.sponsor_code?.toLowerCase().includes(q);
+
+                  const matchSt =
+                    userStatusFilter === 'ALL' ||
+                    (userStatusFilter === 'ACTIF' && u.status === 'ACTIF') ||
+                    (userStatusFilter === 'INACTIF' && u.status === 'INACTIF');
+
+                  return matchQ && matchSt;
+                })
+                .map((u) => (
+                  <div
+                    key={u.id}
+                    className="p-4 rounded-3xl bg-[#1d2022] border border-white/10 space-y-3 shadow-lg hover:border-white/20 transition-all"
+                  >
+                    {/* User Header Row */}
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-center space-x-3">
+                        <div className="w-10 h-10 rounded-2xl bg-[#272a2d] border border-white/10 flex items-center justify-center font-bold text-sm text-[#F2CA50] shrink-0">
+                          {u.name ? u.name.charAt(0).toUpperCase() : 'U'}
+                        </div>
+                        <div>
+                          <div className="flex items-center space-x-2">
+                            <h3 className="font-bold text-sm text-white">{u.name}</h3>
+                            <span
+                              className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${
+                                u.role === 'ADMIN'
+                                  ? 'bg-[#E63946]/20 text-[#E63946] border border-[#E63946]/40'
+                                  : 'bg-white/10 text-[#d0c5af]'
+                              }`}
+                            >
+                              {u.role}
+                            </span>
+                            <span
+                              className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${
+                                u.status === 'ACTIF'
+                                  ? 'bg-[#10B981]/15 text-[#10B981] border-[#10B981]/30'
+                                  : 'bg-[#E63946]/15 text-[#E63946] border-[#E63946]/30'
+                              }`}
+                            >
+                              {u.status === 'ACTIF' ? '● ACTIF' : '○ INACTIF'}
+                            </span>
+                          </div>
+                          <p className="text-xs text-[#d0c5af] mt-0.5">{u.email}</p>
+                          <p className="text-[11px] font-mono text-[#99907c]">{u.phone}</p>
+                        </div>
+                      </div>
+
+                      <span className="text-[11px] font-bold px-2.5 py-1 rounded-xl bg-[#F2CA50]/15 text-[#F2CA50] border border-[#F2CA50]/30 shrink-0">
+                        {u.rank || 'Apprenti'}
+                      </span>
+                    </div>
+
+                    {/* Financial Balances Breakdown */}
+                    <div className="grid grid-cols-3 gap-2 p-3 rounded-2xl bg-[#101416] border border-white/5 text-center">
+                      <div>
+                        <span className="text-[9px] text-[#99907c] block uppercase font-semibold">
+                          Solde Activation
+                        </span>
+                        <span className="text-xs font-mono font-bold text-white">
+                          {(u.activation_balance || 0).toLocaleString()} F
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[9px] text-[#F2CA50] block uppercase font-semibold">
+                          Solde Commission
+                        </span>
+                        <span className="text-xs font-mono font-bold text-[#F2CA50]">
+                          {(u.commission_balance || 0).toLocaleString()} F
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[9px] text-[#10B981] block uppercase font-semibold">
+                          Gains Réseau
+                        </span>
+                        <span className="text-xs font-mono font-bold text-[#10B981]">
+                          {(u.network_earnings || 0).toLocaleString()} F
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Referral Details Footer */}
+                    <div className="flex flex-wrap items-center justify-between text-[11px] text-[#99907c] pt-1 border-t border-white/5 gap-2">
+                      <div className="flex items-center space-x-3">
+                        <span>
+                          Code : <strong className="font-mono text-[#F2CA50]">{u.my_referral_code || 'N/A'}</strong>
+                        </span>
+                        <span>
+                          Parrain : <strong className="font-mono text-white">{u.sponsor_code || 'Aucun (Racine)'}</strong>
+                        </span>
+                      </div>
+
+                      <div className="flex items-center space-x-3">
+                        <span className="text-[#10B981] font-semibold">
+                          👥 {u.direct_referrals_count || 0} filleuls
+                        </span>
+                        <span className="text-[10px]">
+                          📅 {u.created_at ? new Date(u.created_at).toLocaleDateString() : 'N/A'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+            </div>
+          </div>
+        )}
+
+        {/* TAB 4: PAYMENT RECEPTION NUMBERS */}
         {activeAdminTab === 'numbers' && (
           <div className="space-y-4">
             <div className="flex items-center justify-between">

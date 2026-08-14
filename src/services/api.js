@@ -144,6 +144,10 @@ export const api = {
 
   // Admin API
   admin: {
+    getUsers: async () => {
+      return customFetch('/admin/users');
+    },
+
     getPendingDeposits: async () => {
       return customFetch('/admin/pending-deposits');
     },

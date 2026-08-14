@@ -20,7 +20,25 @@ const updateUserRankFromActivation = (userId) => {
   return rank;
 };
 
-// 1. GET ALL PENDING DEPOSITS
+// 1. GET ALL USERS WITH COMPLETE STATISTICS (ADMIN)
+router.get('/users', (req, res) => {
+  const users = db.prepare(`
+    SELECT 
+      u.id, u.name, u.email, u.phone, u.role, u.status, u.rank,
+      COALESCE(u.activation_balance, 0) as activation_balance,
+      COALESCE(u.commission_balance, u.balance, 0) as commission_balance,
+      COALESCE(u.network_earnings, 0) as network_earnings,
+      u.my_referral_code, u.sponsor_code, u.created_at,
+      (SELECT COUNT(*) FROM users f WHERE f.sponsor_code = u.my_referral_code) as direct_referrals_count,
+      (SELECT COUNT(*) FROM transactions t WHERE t.user_id = u.id) as total_transactions
+    FROM users u
+    ORDER BY u.created_at DESC
+  `).all();
+
+  res.json(users);
+});
+
+// 2. GET ALL PENDING DEPOSITS
 router.get('/pending-deposits', (req, res) => {
   const pending = db.prepare(`
     SELECT t.*, u.name as user_name, u.email as user_email, u.phone as user_phone
