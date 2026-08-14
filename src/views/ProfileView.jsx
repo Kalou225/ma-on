@@ -173,26 +173,6 @@ export const ProfileView = () => {
         </a>
       </div>
 
-      {/* Accès Console Admin si le compte est ADMIN */}
-      {user.role === 'ADMIN' && (
-        <div className="p-4 rounded-3xl bg-[#E63946]/10 border border-[#E63946]/30 flex items-center justify-between">
-          <div className="space-y-0.5">
-            <div className="flex items-center space-x-2 text-[#E63946]">
-              <Shield className="w-4 h-4" />
-              <h3 className="text-xs font-bold">Console Administrateur</h3>
-            </div>
-            <p className="text-[11px] text-[#d0c5af]">
-              Accéder au portail d'administration autonome Back-Office.
-            </p>
-          </div>
-          <button
-            onClick={() => setIsAdminMode(true)}
-            className="px-3 py-2 rounded-xl text-xs font-bold bg-[#E63946] text-white shrink-0 hover:brightness-110 shadow-md"
-          >
-            Ouvrir Admin
-          </button>
-        </div>
-      )}
 
       {/* Account Settings List & Logout */}
       <div className="p-4 rounded-3xl bg-[#1d2022] border border-white/5 space-y-1 text-xs">

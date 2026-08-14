@@ -39,18 +39,6 @@ export const Header = () => {
 
         {/* Right Actions */}
         <div className="flex items-center space-x-2">
-          {/* Admin Switcher Button (uniquement si rôle ADMIN) */}
-          {user.role === 'ADMIN' && (
-            <button
-              onClick={() => setIsAdminMode(true)}
-              className="px-2.5 py-1 rounded-xl text-[11px] font-bold bg-[#E63946] text-white flex items-center space-x-1 hover:brightness-110 shadow-md"
-              title="Basculer vers la Console d'Administration"
-            >
-              <ShieldCheck className="w-3.5 h-3.5" />
-              <span>Admin</span>
-            </button>
-          )}
-
           {/* Account Status Badge */}
           <div
             className={`flex items-center space-x-1 text-[11px] font-medium px-2 py-1 rounded-full border ${
