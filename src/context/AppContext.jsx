@@ -366,28 +366,29 @@ export const AppProvider = ({ children }) => {
     }
   };
 
-  const sendOtp = async (phone, email) => {
+  const sendOtp = async (phone, email, channel = 'EMAIL') => {
     try {
-      const data = await api.auth.sendOtp({ phone, email });
+      const data = await api.auth.sendOtp({ phone, email, channel });
+      const targetLabel = channel === 'EMAIL' ? `l'email ${email}` : `le ${phone}`;
       if (data.simulatedCode) {
-        showToastNotification(`Code SMS envoyé au ${phone} : ${data.simulatedCode}`, 'info');
+        showToastNotification(`Code OTP envoyé à ${targetLabel} : ${data.simulatedCode}`, 'info');
       } else {
-        showToastNotification(`Code SMS envoyé avec succès au ${phone}.`, 'info');
+        showToastNotification(`Code OTP envoyé avec succès à ${targetLabel}.`, 'info');
       }
       return data;
     } catch (err) {
-      showToastNotification(err.message || 'Impossible d\'envoyer le code SMS', 'error');
+      showToastNotification(err.message || 'Impossible d\'envoyer le code de confirmation', 'error');
       throw err;
     }
   };
 
-  const sendForgotPasswordOtp = async (phone) => {
+  const sendForgotPasswordOtp = async (identifier, channel = 'EMAIL') => {
     try {
-      const data = await api.auth.sendForgotPasswordOtp({ phone });
+      const data = await api.auth.sendForgotPasswordOtp({ identifier, channel });
       if (data.simulatedCode) {
-        showToastNotification(`Code de récupération SMS envoyé : ${data.simulatedCode}`, 'info');
+        showToastNotification(`Code de récupération envoyé : ${data.simulatedCode}`, 'info');
       } else {
-        showToastNotification(`Code SMS envoyé avec succès au ${phone}.`, 'info');
+        showToastNotification(data.message || 'Code de récupération envoyé avec succès.', 'info');
       }
       return data;
     } catch (err) {
@@ -396,9 +397,9 @@ export const AppProvider = ({ children }) => {
     }
   };
 
-  const resetPassword = async ({ phone, otpCode, newPassword, confirmNewPassword }) => {
+  const resetPassword = async ({ identifier, phone, email, otpCode, newPassword, confirmNewPassword }) => {
     try {
-      const data = await api.auth.resetPassword({ phone, otpCode, newPassword, confirmNewPassword });
+      const data = await api.auth.resetPassword({ identifier, phone, email, otpCode, newPassword, confirmNewPassword });
       showToastNotification(data.message || 'Mot de passe réinitialisé avec succès !', 'success');
       return data;
     } catch (err) {
@@ -407,9 +408,9 @@ export const AppProvider = ({ children }) => {
     }
   };
 
-  const signup = async ({ name, email, phone, sponsorCode, password, confirmPassword, otpCode }) => {
+  const signup = async ({ name, email, phone, sponsorCode, password, confirmPassword, otpCode, channel }) => {
     try {
-      const data = await api.auth.signup({ name, email, phone, sponsorCode, password, confirmPassword, otpCode });
+      const data = await api.auth.signup({ name, email, phone, sponsorCode, password, confirmPassword, otpCode, channel });
       setIsAuthenticated(true);
       setUser((prev) => ({
         ...prev,

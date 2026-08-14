@@ -102,6 +102,17 @@ db.exec(`
     verified INTEGER NOT NULL DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
+
+  CREATE TABLE IF NOT EXISTS otp_verifications (
+    id TEXT PRIMARY KEY,
+    identifier TEXT NOT NULL,
+    channel TEXT NOT NULL DEFAULT 'EMAIL',
+    otp_code TEXT NOT NULL,
+    expires_at DATETIME NOT NULL,
+    attempts INTEGER NOT NULL DEFAULT 0,
+    verified INTEGER NOT NULL DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
 `);
 
 try {

@@ -20,14 +20,17 @@ import {
   Smartphone,
   Check,
   HelpCircle,
+  ClipboardPaste,
+  Send,
+  Zap,
 } from 'lucide-react';
 
 export const AuthView = () => {
-  const { login, signup, sendOtp, sendForgotPasswordOtp, resetPassword } = useApp();
+  const { login, signup, sendOtp, sendForgotPasswordOtp, resetPassword, showToastNotification } = useApp();
 
   const [mode, setMode] = useState('login'); // 'login' | 'signup' | 'forgot_password'
-  const [signupStep, setSignupStep] = useState(1); // 1: Info & Passwords, 2: OTP Phone Verification
-  const [forgotStep, setForgotStep] = useState(1); // 1: Phone number, 2: OTP & New Password
+  const [signupStep, setSignupStep] = useState(1); // 1: Info & Passwords, 2: OTP Verification
+  const [forgotStep, setForgotStep] = useState(1); // 1: Identifier, 2: OTP & New Password
   
   // Visibility toggles for passwords
   const [showLoginPassword, setShowLoginPassword] = useState(false);
@@ -52,16 +55,18 @@ export const AuthView = () => {
   const [signupPassword, setSignupPassword] = useState('');
   const [signupConfirmPassword, setSignupConfirmPassword] = useState('');
   const [isPrefilledFromRef, setIsPrefilledFromRef] = useState(false);
+  const [otpChannel, setOtpChannel] = useState('EMAIL'); // 'EMAIL' | 'SMS'
   
   // OTP Verification state (Signup)
   const [otpCode, setOtpCode] = useState('');
   const [resendTimer, setResendTimer] = useState(0);
 
   // Forgot Password Form fields
-  const [forgotPhone, setForgotPhone] = useState('');
+  const [forgotIdentifier, setForgotIdentifier] = useState('');
   const [forgotOtp, setForgotOtp] = useState('');
   const [forgotNewPassword, setForgotNewPassword] = useState('');
   const [forgotConfirmPassword, setForgotConfirmPassword] = useState('');
+  const [forgotChannel, setForgotChannel] = useState('EMAIL'); // 'EMAIL' | 'SMS'
 
   // Auto-detect referral code from URL parameter (?ref=CODE or ?sponsor=CODE)
   useEffect(() => {
@@ -79,6 +84,57 @@ export const AuthView = () => {
       }
     } catch (e) {}
   }, []);
+
+  // WebOTP API Integration (Mobile browsers automatic OTP detection)
+  useEffect(() => {
+    if (typeof window === 'undefined' || !('OTPCredential' in window)) return;
+    if (signupStep !== 2 && forgotStep !== 2) return;
+
+    const ac = new AbortController();
+    navigator.credentials
+      .get({
+        otp: { transport: ['sms'] },
+        signal: ac.signal,
+      })
+      .then((otp) => {
+        if (otp && otp.code) {
+          const clean = otp.code.trim();
+          if (signupStep === 2) setOtpCode(clean);
+          if (forgotStep === 2) setForgotOtp(clean);
+          if (showToastNotification) {
+            showToastNotification('Code de confirmation détecté automatiquement par WebOTP !', 'success');
+          }
+        }
+      })
+      .catch(() => {});
+
+    return () => {
+      ac.abort();
+    };
+  }, [signupStep, forgotStep, showToastNotification]);
+
+  // 1-Click Clipboard Paste Helper
+  const handlePasteClipboard = async (target) => {
+    try {
+      const text = await navigator.clipboard.readText();
+      const match = text.match(/\b\d{6}\b/);
+      if (match) {
+        if (target === 'signup') setOtpCode(match[0]);
+        if (target === 'forgot') setForgotOtp(match[0]);
+        if (showToastNotification) {
+          showToastNotification('Code collé depuis le presse-papier !', 'success');
+        }
+      } else {
+        if (showToastNotification) {
+          showToastNotification('Aucun code à 6 chiffres trouvé dans le presse-papier.', 'info');
+        }
+      }
+    } catch (e) {
+      if (showToastNotification) {
+        showToastNotification('Accès presse-papier non autorisé.', 'error');
+      }
+    }
+  };
 
   // Timer countdown for OTP resend
   useEffect(() => {
@@ -116,7 +172,7 @@ export const AuthView = () => {
     setIsSubmitting(false);
   };
 
-  // 2. Handle Step 1 of Signup (Validation & Requesting OTP SMS)
+  // 2. Handle Step 1 of Signup (Validation & Requesting OTP)
   const handleStep1Submit = async (e) => {
     e.preventDefault();
     setAuthError('');
@@ -132,42 +188,50 @@ export const AuthView = () => {
       return;
     }
 
-    if (signupPhone.trim().length < 8) {
-      setAuthError('Veuillez renseigner un numéro de téléphone valide.');
+    if (!signupEmail.trim() && !signupPhone.trim()) {
+      setAuthError('Veuillez renseigner une adresse email ou un numéro de téléphone.');
       return;
     }
 
     setIsSubmitting(true);
     try {
-      const result = await sendOtp(signupPhone.trim(), signupEmail.trim().toLowerCase());
+      const result = await sendOtp(signupPhone.trim(), signupEmail.trim().toLowerCase(), otpChannel);
       setSignupStep(2);
       setResendTimer(60); // 60 seconds cooldown
-      setAuthSuccess(`Code SMS envoyé au ${signupPhone.trim()}`);
+      setAuthSuccess(
+        otpChannel === 'EMAIL'
+          ? `Code de confirmation envoyé par Email à ${signupEmail.trim().toLowerCase()}`
+          : `Code de confirmation envoyé par SMS au ${signupPhone.trim()}`
+      );
       if (result.simulatedCode) {
         setOtpCode(result.simulatedCode);
       }
     } catch (err) {
-      setAuthError(err.message || 'Impossible d\'envoyer le code de validation SMS.');
+      setAuthError(err.message || 'Impossible d\'envoyer le code de confirmation.');
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  // 3. Handle Resend OTP SMS (Signup)
+  // 3. Handle Resend OTP (Signup)
   const handleResendOtp = async () => {
     if (resendTimer > 0 || isSubmitting) return;
     setAuthError('');
     setAuthSuccess('');
     setIsSubmitting(true);
     try {
-      const result = await sendOtp(signupPhone.trim(), signupEmail.trim().toLowerCase());
+      const result = await sendOtp(signupPhone.trim(), signupEmail.trim().toLowerCase(), otpChannel);
       setResendTimer(60);
-      setAuthSuccess('Un nouveau code de validation a été envoyé par SMS.');
+      setAuthSuccess(
+        otpChannel === 'EMAIL'
+          ? 'Un nouveau code de validation a été envoyé à votre adresse email.'
+          : 'Un nouveau code de validation a été envoyé par SMS.'
+      );
       if (result.simulatedCode) {
         setOtpCode(result.simulatedCode);
       }
     } catch (err) {
-      setAuthError(err.message || 'Erreur lors du renvoi du code SMS.');
+      setAuthError(err.message || 'Erreur lors du renvoi du code OTP.');
     } finally {
       setIsSubmitting(false);
     }
@@ -180,7 +244,7 @@ export const AuthView = () => {
     setAuthSuccess('');
 
     if (!otpCode || otpCode.trim().length < 6) {
-      setAuthError('Veuillez saisir le code à 6 chiffres reçu par SMS.');
+      setAuthError('Veuillez saisir le code à 6 chiffres reçu.');
       return;
     }
 
@@ -193,10 +257,11 @@ export const AuthView = () => {
       password: signupPassword,
       confirmPassword: signupConfirmPassword,
       otpCode: otpCode.trim(),
+      channel: otpChannel,
     });
 
     if (!success) {
-      setAuthError('Code de confirmation SMS invalide ou erreur lors de la création.');
+      setAuthError('Code de confirmation invalide ou erreur lors de la création.');
     }
     setIsSubmitting(false);
   };
@@ -207,22 +272,29 @@ export const AuthView = () => {
     setAuthError('');
     setAuthSuccess('');
 
-    if (forgotPhone.trim().length < 8) {
-      setAuthError('Veuillez entrer un numéro de téléphone valide.');
+    const rawId = (forgotIdentifier || forgotPhone || '').trim();
+    if (!rawId || rawId.length < 4) {
+      setAuthError('Veuillez entrer une adresse email ou un numéro de téléphone valide.');
       return;
     }
 
     setIsSubmitting(true);
     try {
-      const res = await sendForgotPasswordOtp(forgotPhone.trim());
+      const channel = rawId.includes('@') ? 'EMAIL' : 'SMS';
+      setForgotChannel(channel);
+      const res = await sendForgotPasswordOtp(rawId, channel);
       setForgotStep(2);
       setResendTimer(60);
-      setAuthSuccess(`Code de récupération envoyé au ${forgotPhone.trim()}`);
+      setAuthSuccess(
+        channel === 'EMAIL'
+          ? `Code de récupération envoyé par email à ${rawId}`
+          : `Code de récupération envoyé par SMS au ${rawId}`
+      );
       if (res.simulatedCode) {
         setForgotOtp(res.simulatedCode);
       }
     } catch (err) {
-      setAuthError(err.message || 'Numéro introuvable ou erreur d\'envoi SMS.');
+      setAuthError(err.message || 'Compte introuvable ou erreur d\'envoi.');
     } finally {
       setIsSubmitting(false);
     }
@@ -235,14 +307,15 @@ export const AuthView = () => {
     setAuthSuccess('');
     setIsSubmitting(true);
     try {
-      const res = await sendForgotPasswordOtp(forgotPhone.trim());
+      const rawId = (forgotIdentifier || forgotPhone || '').trim();
+      const res = await sendForgotPasswordOtp(rawId, forgotChannel);
       setResendTimer(60);
-      setAuthSuccess('Nouveau code de récupération envoyé par SMS.');
+      setAuthSuccess('Nouveau code de récupération envoyé.');
       if (res.simulatedCode) {
         setForgotOtp(res.simulatedCode);
       }
     } catch (err) {
-      setAuthError(err.message || 'Erreur lors du renvoi.');
+      setAuthError(err.message || 'Erreur lors du renvoi du code.');
     } finally {
       setIsSubmitting(false);
     }
@@ -254,11 +327,6 @@ export const AuthView = () => {
     setAuthError('');
     setAuthSuccess('');
 
-    if (!forgotOtp || forgotOtp.trim().length < 6) {
-      setAuthError('Veuillez entrer le code à 6 chiffres reçu par SMS.');
-      return;
-    }
-
     if (forgotNewPassword.length < 8) {
       setAuthError('Le nouveau mot de passe doit comporter au moins 8 caractères.');
       return;
@@ -269,22 +337,33 @@ export const AuthView = () => {
       return;
     }
 
+    if (!forgotOtp || forgotOtp.trim().length < 6) {
+      setAuthError('Veuillez saisir le code de récupération à 6 chiffres.');
+      return;
+    }
+
     setIsSubmitting(true);
     try {
+      const rawId = (forgotIdentifier || forgotPhone || '').trim();
       await resetPassword({
-        phone: forgotPhone.trim(),
+        identifier: rawId,
+        phone: rawId.includes('@') ? '' : rawId,
+        email: rawId.includes('@') ? rawId : '',
         otpCode: forgotOtp.trim(),
         newPassword: forgotNewPassword,
         confirmNewPassword: forgotConfirmPassword,
       });
 
-      // Switch back to Login and fill identifier
+      setAuthSuccess('Mot de passe réinitialisé avec succès ! Connectez-vous avec vos nouveaux identifiants.');
+      setLoginIdentifier(rawId);
+      setLoginPassword(forgotNewPassword);
       setMode('login');
-      setLoginIdentifier(forgotPhone.trim());
-      setLoginPassword('');
-      setAuthSuccess('Mot de passe réinitialisé ! Vous pouvez maintenant vous connecter.');
+      setForgotStep(1);
+      setForgotOtp('');
+      setForgotNewPassword('');
+      setForgotConfirmPassword('');
     } catch (err) {
-      setAuthError(err.message || 'Code invalide ou échec de réinitialisation.');
+      setAuthError(err.message || 'Code de confirmation invalide ou expiré.');
     } finally {
       setIsSubmitting(false);
     }
@@ -651,19 +730,59 @@ export const AuthView = () => {
               </div>
             </div>
 
+            {/* Choix du canal de réception OTP */}
+            <div className="pt-1">
+              <label className="text-[11px] font-semibold text-[#d0c5af] block mb-1.5">
+                Mode de réception du code de vérification :
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setOtpChannel('EMAIL')}
+                  className={`py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center space-x-1.5 border transition-all ${
+                    otpChannel === 'EMAIL'
+                      ? 'bg-[#F2CA50]/15 border-[#F2CA50] text-[#F2CA50] shadow-sm'
+                      : 'bg-[#191c1e] border-white/10 text-[#99907c] hover:text-white'
+                  }`}
+                >
+                  <Mail className="w-3.5 h-3.5" />
+                  <span>Email (Recommandé)</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setOtpChannel('SMS')}
+                  className={`py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center space-x-1.5 border transition-all ${
+                    otpChannel === 'SMS'
+                      ? 'bg-[#F2CA50]/15 border-[#F2CA50] text-[#F2CA50] shadow-sm'
+                      : 'bg-[#191c1e] border-white/10 text-[#99907c] hover:text-white'
+                  }`}
+                >
+                  <Smartphone className="w-3.5 h-3.5" />
+                  <span>SMS Mobile</span>
+                </button>
+              </div>
+            </div>
+
             <button
               type="submit"
               disabled={isSubmitting || !isPasswordLongEnough || (isConfirmPasswordTouched && !doPasswordsMatch)}
               className="w-full py-3.5 rounded-2xl gold-gradient-bg text-black font-extrabold text-sm flex items-center justify-center space-x-2 shadow-xl hover:brightness-110 active:scale-98 transition-all mt-3 disabled:opacity-40"
             >
-              <span>{isSubmitting ? 'Génération du SMS...' : 'Continuer (Recevoir Code SMS)'}</span>
+              <span>
+                {isSubmitting
+                  ? 'Envoi en cours...'
+                  : otpChannel === 'EMAIL'
+                  ? 'Continuer (Recevoir Code par Email)'
+                  : 'Continuer (Recevoir Code par SMS)'}
+              </span>
               <ArrowRight className="w-4 h-4" />
             </button>
           </form>
         )}
 
         {/* ========================================================= */}
-        {/* MODE 2: INSCRIPTION — ÉTAPE 2 (VALIDATION OTP PAR SMS)     */}
+        {/* MODE 2: INSCRIPTION — ÉTAPE 2 (VALIDATION OTP EMAIL & SMS) */}
         {/* ========================================================= */}
         {mode === 'signup' && signupStep === 2 && (
           <form onSubmit={handleStep2FinalSubmit} className="space-y-4 animate-in fade-in slide-in-from-right-3">
@@ -684,25 +803,46 @@ export const AuthView = () => {
               </span>
             </div>
 
-            <div className="p-3.5 rounded-2xl bg-[#191c1e] border border-white/10 space-y-1 text-center">
+            <div className="p-3.5 rounded-2xl bg-[#191c1e] border border-white/10 space-y-1.5 text-center">
               <div className="w-10 h-10 mx-auto rounded-full bg-[#F2CA50]/10 flex items-center justify-center text-[#F2CA50] mb-1">
-                <Smartphone className="w-5 h-5" />
+                {otpChannel === 'EMAIL' ? <Mail className="w-5 h-5" /> : <Smartphone className="w-5 h-5" />}
               </div>
               <p className="text-xs text-[#d0c5af]">
-                Code de validation à 6 chiffres transmis par SMS à :
+                Code de validation à 6 chiffres transmis par{' '}
+                <strong className="text-white">{otpChannel === 'EMAIL' ? 'Email' : 'SMS'}</strong> à :
               </p>
               <p className="text-sm font-mono font-bold text-[#F2CA50]">
-                {signupPhone}
+                {otpChannel === 'EMAIL' ? signupEmail : signupPhone}
               </p>
+
+              {/* WebOTP Notification Banner */}
+              <div className="mt-2 pt-2 border-t border-white/5 flex items-center justify-center space-x-1.5 text-[10px] text-[#10B981]">
+                <Zap className="w-3 h-3 text-[#10B981]" />
+                <span>Détection automatique WebOTP active sur navigateurs mobiles</span>
+              </div>
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-center text-[#d0c5af] mb-2">
-                Saisissez le code SMS reçu :
-              </label>
+              <div className="flex justify-between items-center mb-2 px-1">
+                <label className="text-xs font-semibold text-[#d0c5af]">
+                  Saisissez le code à 6 chiffres :
+                </label>
+                <button
+                  type="button"
+                  onClick={() => handlePasteClipboard('signup')}
+                  className="text-[11px] font-bold text-[#F2CA50] hover:text-white flex items-center space-x-1 bg-[#191c1e] px-2 py-1 rounded-lg border border-white/10 active:scale-95 transition-all"
+                >
+                  <ClipboardPaste className="w-3 h-3" />
+                  <span>Coller le code</span>
+                </button>
+              </div>
+
               <div className="relative max-w-xs mx-auto">
                 <input
                   type="text"
+                  autoComplete="one-time-code"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
                   maxLength={6}
                   value={otpCode}
                   onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ''))}
@@ -718,7 +858,7 @@ export const AuthView = () => {
               {resendTimer > 0 ? (
                 <p className="text-xs text-[#99907c] flex items-center justify-center gap-1.5">
                   <RotateCcw className="w-3.5 h-3.5 animate-spin" />
-                  <span>Renvoyer le code SMS dans <strong className="text-[#F2CA50]">{resendTimer}s</strong></span>
+                  <span>Renvoyer le code dans <strong className="text-[#F2CA50]">{resendTimer}s</strong></span>
                 </p>
               ) : (
                 <button
@@ -728,7 +868,7 @@ export const AuthView = () => {
                   className="text-xs font-bold text-[#F2CA50] hover:underline inline-flex items-center gap-1.5"
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
-                  <span>Renvoyer un nouveau code SMS</span>
+                  <span>Renvoyer un nouveau code</span>
                 </button>
               )}
             </div>
@@ -745,26 +885,26 @@ export const AuthView = () => {
         )}
 
         {/* ========================================================= */}
-        {/* MODE 3: MOT DE PASSE OUBLIÉ — ÉTAPE 1 (SAISIE TÉLÉPHONE)   */}
+        {/* MODE 3: MOT DE PASSE OUBLIÉ — ÉTAPE 1 (EMAIL / TÉLÉPHONE)  */}
         {/* ========================================================= */}
         {mode === 'forgot_password' && forgotStep === 1 && (
           <form onSubmit={handleForgotStep1Submit} className="space-y-4 animate-in fade-in slide-in-from-bottom-2">
             <div className="p-3 rounded-2xl bg-[#191c1e] border border-white/10 text-xs text-[#d0c5af] space-y-1">
-              <p className="font-semibold text-white">Récupération sécurisée par SMS</p>
-              <p>Entrez le numéro de téléphone associé à votre compte Eco-Finance pour recevoir un code OTP de réinitialisation.</p>
+              <p className="font-semibold text-white">Récupération sécurisée par Code OTP</p>
+              <p>Entrez l'adresse email ou le numéro de téléphone associé à votre compte Eco-Finance pour recevoir votre code de vérification.</p>
             </div>
 
             <div>
               <label className="block text-xs font-semibold text-[#d0c5af] mb-1.5">
-                Numéro de Téléphone
+                Adresse Email ou Téléphone
               </label>
               <div className="relative">
-                <Smartphone className="w-4 h-4 text-[#F2CA50] absolute left-3.5 top-3.5" />
+                <Mail className="w-4 h-4 text-[#F2CA50] absolute left-3.5 top-3.5" />
                 <input
-                  type="tel"
-                  value={forgotPhone}
-                  onChange={(e) => setForgotPhone(e.target.value)}
-                  placeholder="ex: +225 07 12 34 56 78"
+                  type="text"
+                  value={forgotIdentifier}
+                  onChange={(e) => setForgotIdentifier(e.target.value)}
+                  placeholder="ex: alex@exemple.com ou +225 07 12 34 56 78"
                   required
                   autoFocus
                   className="w-full bg-[#191c1e] border border-[#F2CA50]/40 rounded-2xl pl-10 pr-4 py-3 text-xs text-white outline-none focus:border-[#F2CA50]"
@@ -774,10 +914,10 @@ export const AuthView = () => {
 
             <button
               type="submit"
-              disabled={isSubmitting || forgotPhone.trim().length < 8}
+              disabled={isSubmitting || forgotIdentifier.trim().length < 4}
               className="w-full py-3.5 rounded-2xl gold-gradient-bg text-black font-extrabold text-sm flex items-center justify-center space-x-2 shadow-xl hover:brightness-110 active:scale-98 transition-all disabled:opacity-40"
             >
-              <span>{isSubmitting ? 'Envoi du SMS...' : 'Envoyer le Code SMS'}</span>
+              <span>{isSubmitting ? 'Envoi en cours...' : 'Envoyer le Code de Confirmation'}</span>
               <ArrowRight className="w-4 h-4" />
             </button>
 
@@ -811,7 +951,7 @@ export const AuthView = () => {
                 className="text-xs text-[#d0c5af] hover:text-[#F2CA50] flex items-center space-x-1 font-semibold"
               >
                 <ArrowLeft className="w-3.5 h-3.5" />
-                <span>Changer de numéro</span>
+                <span>Changer d'identifiant</span>
               </button>
               <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-[#F2CA50]/15 text-[#F2CA50] border border-[#F2CA50]/30">
                 Étape 2 / 2
@@ -820,18 +960,31 @@ export const AuthView = () => {
 
             {/* OTP Code */}
             <div>
-              <label className="block text-xs font-semibold text-[#d0c5af] mb-1.5 text-center">
-                Code de récupération reçu au <span className="text-[#F2CA50] font-mono">{forgotPhone}</span> :
-              </label>
+              <div className="flex justify-between items-center mb-1.5 px-1">
+                <label className="text-xs font-semibold text-[#d0c5af]">
+                  Code reçu à <span className="text-[#F2CA50] font-mono">{forgotIdentifier}</span> :
+                </label>
+                <button
+                  type="button"
+                  onClick={() => handlePasteClipboard('forgot')}
+                  className="text-[11px] font-bold text-[#F2CA50] hover:text-white flex items-center space-x-1 bg-[#191c1e] px-2 py-1 rounded-lg border border-white/10 active:scale-95 transition-all"
+                >
+                  <ClipboardPaste className="w-3 h-3" />
+                  <span>Coller</span>
+                </button>
+              </div>
               <input
                 type="text"
+                autoComplete="one-time-code"
+                inputMode="numeric"
+                pattern="[0-9]*"
                 maxLength={6}
                 value={forgotOtp}
                 onChange={(e) => setForgotOtp(e.target.value.replace(/\D/g, ''))}
                 placeholder="123456"
                 autoFocus
                 required
-                className="w-full bg-[#141719] border-2 border-[#F2CA50] rounded-2xl py-2.5 text-center text-xl font-mono font-black tracking-widest text-[#F2CA50] outline-none"
+                className="w-full bg-[#141719] border-2 border-[#F2CA50] rounded-2xl py-2.5 text-center text-xl font-mono font-black tracking-widest text-[#F2CA50] outline-none shadow-inner focus:ring-2 focus:ring-[#F2CA50]/40"
               />
             </div>
 
@@ -849,7 +1002,7 @@ export const AuthView = () => {
                   className="text-[11px] font-bold text-[#F2CA50] hover:underline inline-flex items-center gap-1"
                 >
                   <RotateCcw className="w-3 h-3" />
-                  <span>Renvoyer le code SMS</span>
+                  <span>Renvoyer le code</span>
                 </button>
               )}
             </div>
@@ -932,11 +1085,11 @@ export const AuthView = () => {
 
             <button
               type="submit"
-              disabled={isSubmitting || forgotOtp.length < 6 || !isForgotPassLongEnough || (isForgotConfirmTouched && !doForgotPassMatch)}
+              disabled={isSubmitting || !isForgotPassLongEnough || !doForgotPassMatch || forgotOtp.length < 6}
               className="w-full py-3.5 rounded-2xl gold-gradient-bg text-black font-extrabold text-sm flex items-center justify-center space-x-2 shadow-xl hover:brightness-110 active:scale-98 transition-all mt-3 disabled:opacity-40"
             >
               <Check className="w-4 h-4 stroke-[3]" />
-              <span>{isSubmitting ? 'Mise à jour...' : 'Sauvegarder & Se Connecter'}</span>
+              <span>{isSubmitting ? 'Mise à jour...' : 'Réinitialiser mon Mot de Passe'}</span>
             </button>
           </form>
         )}

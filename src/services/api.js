@@ -51,31 +51,31 @@ export const api = {
       return data;
     },
 
-    sendOtp: async ({ phone, email }) => {
+    sendOtp: async ({ phone, email, channel }) => {
       return customFetch('/auth/send-otp', {
         method: 'POST',
-        body: JSON.stringify({ phone, email }),
+        body: JSON.stringify({ phone, email, channel }),
       });
     },
 
-    sendForgotPasswordOtp: async ({ phone }) => {
+    sendForgotPasswordOtp: async ({ identifier, phone, email, channel }) => {
       return customFetch('/auth/forgot-password/send-otp', {
         method: 'POST',
-        body: JSON.stringify({ phone }),
+        body: JSON.stringify({ identifier, phone, email, channel }),
       });
     },
 
-    resetPassword: async ({ phone, otpCode, newPassword, confirmNewPassword }) => {
+    resetPassword: async ({ identifier, phone, email, otpCode, newPassword, confirmNewPassword }) => {
       return customFetch('/auth/forgot-password/reset', {
         method: 'POST',
-        body: JSON.stringify({ phone, otpCode, newPassword, confirmNewPassword }),
+        body: JSON.stringify({ identifier, phone, email, otpCode, newPassword, confirmNewPassword }),
       });
     },
 
-    signup: async ({ name, email, phone, password, confirmPassword, sponsorCode, otpCode }) => {
+    signup: async ({ name, email, phone, password, confirmPassword, sponsorCode, otpCode, channel }) => {
       const data = await customFetch('/auth/signup', {
         method: 'POST',
-        body: JSON.stringify({ name, email, phone, password, confirmPassword, sponsorCode, otpCode }),
+        body: JSON.stringify({ name, email, phone, password, confirmPassword, sponsorCode, otpCode, channel }),
       });
       if (data.accessToken) {
         localStorage.setItem('accessToken', data.accessToken);

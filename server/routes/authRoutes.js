@@ -8,7 +8,7 @@ import { validateRequest } from '../middleware/validate.js';
 import { strictAuthRateLimiter } from '../middleware/rateLimiter.js';
 import { logSecurityEvent } from '../services/auditLogger.js';
 import { generateMfaSecret, generateQrCodeUrl, verifyMfaToken } from '../services/mfaService.js';
-import { generateAndSendPhoneOtp, verifyPhoneOtp } from '../services/otpService.js';
+import { generateAndSendOtp, generateAndSendEmailOtp, generateAndSendPhoneOtp, verifyOtp, verifyPhoneOtp } from '../services/otpService.js';
 import { authenticateToken } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
@@ -16,8 +16,11 @@ const router = express.Router();
 // Validation Schemas (Zod)
 const sendOtpSchema = z.object({
   body: z.object({
-    phone: z.string().min(8, { message: 'Numéro de téléphone invalide (min 8 chiffres)' }),
     email: z.string().email({ message: 'Adresse email invalide' }).optional().or(z.literal('')),
+    phone: z.string().optional().or(z.literal('')),
+    channel: z.enum(['EMAIL', 'SMS', 'email', 'sms']).optional(),
+  }).refine((data) => (data.email && data.email.length > 0) || (data.phone && data.phone.length > 0), {
+    message: 'Une adresse email ou un numéro de téléphone est requis pour recevoir le code OTP.',
   }),
 });
 
@@ -31,14 +34,21 @@ const loginSchema = z.object({
 
 const forgotPasswordSendOtpSchema = z.object({
   body: z.object({
-    phone: z.string().min(8, { message: 'Numéro de téléphone requis (min 8 chiffres)' }),
+    identifier: z.string().optional(),
+    phone: z.string().optional(),
+    email: z.string().optional(),
+    channel: z.enum(['EMAIL', 'SMS', 'email', 'sms']).optional(),
+  }).refine((data) => data.identifier || data.phone || data.email, {
+    message: 'Email ou numéro de téléphone requis pour la réinitialisation.',
   }),
 });
 
 const forgotPasswordResetSchema = z.object({
   body: z.object({
-    phone: z.string().min(8, { message: 'Numéro de téléphone requis' }),
-    otpCode: z.string().min(6, { message: 'Code SMS à 6 chiffres requis' }),
+    identifier: z.string().optional(),
+    phone: z.string().optional(),
+    email: z.string().optional(),
+    otpCode: z.string().min(6, { message: 'Code de confirmation à 6 chiffres requis' }),
     newPassword: z.string().min(8, { message: 'Nouveau mot de passe trop court (min 8 caractères)' }),
     confirmNewPassword: z.string().min(8, { message: 'Confirmation du mot de passe requise' }),
   }).refine((data) => data.newPassword === data.confirmNewPassword, {
@@ -55,7 +65,8 @@ const signupSchema = z.object({
     password: z.string().min(8, { message: 'Mot de passe trop court (min 8 caractères)' }),
     confirmPassword: z.string().min(8, { message: 'Confirmation du mot de passe requise (min 8 caractères)' }),
     sponsorCode: z.string().optional(),
-    otpCode: z.string().min(6, { message: 'Code de confirmation SMS à 6 chiffres requis' }),
+    otpCode: z.string().min(6, { message: 'Code de confirmation à 6 chiffres requis' }),
+    channel: z.enum(['EMAIL', 'SMS', 'email', 'sms']).optional(),
   }).refine((data) => data.password === data.confirmPassword, {
     message: 'Les mots de passe ne correspondent pas',
     path: ['confirmPassword'],
@@ -90,79 +101,112 @@ const issueTokens = (res, userId, role) => {
   return { accessToken, refreshToken };
 };
 
-// 0a. SEND OTP SMS FOR PHONE NUMBER VERIFICATION (SIGNUP)
+// 0a. SEND OTP (EMAIL & SMS + WebOTP API) FOR SIGNUP
 router.post('/send-otp', strictAuthRateLimiter, validateRequest(sendOtpSchema), async (req, res) => {
-  const { phone, email } = req.validated.body;
-  const cleanPhone = phone.trim();
+  const { phone, email, channel } = req.validated.body;
+  const cleanPhone = (phone || '').trim();
+  const cleanEmail = (email || '').trim().toLowerCase();
+  const hostOrigin = req.headers.host || 'ma-on.onrender.com';
 
   // Check if an existing account already uses this phone number
-  const existingPhone = db.prepare('SELECT id FROM users WHERE phone = ?').get(cleanPhone);
-  if (existingPhone) {
-    return res.status(400).json({ error: 'Un compte existe déjà avec ce numéro de téléphone.' });
+  if (cleanPhone) {
+    const existingPhone = db.prepare('SELECT id FROM users WHERE phone = ? OR phone = ?').get(
+      cleanPhone,
+      cleanPhone.startsWith('+') ? cleanPhone : `+${cleanPhone}`
+    );
+    if (existingPhone) {
+      return res.status(400).json({ error: 'Un compte existe déjà avec ce numéro de téléphone.' });
+    }
   }
 
   // Check if an existing account already uses this email
-  if (email && email.trim()) {
-    const existingEmail = db.prepare('SELECT id FROM users WHERE LOWER(email) = ?').get(email.trim().toLowerCase());
+  if (cleanEmail) {
+    const existingEmail = db.prepare('SELECT id FROM users WHERE LOWER(email) = ?').get(cleanEmail);
     if (existingEmail) {
       return res.status(400).json({ error: 'Un compte existe déjà avec cette adresse email.' });
     }
   }
 
   try {
-    const result = await generateAndSendPhoneOtp(cleanPhone, email);
+    const result = await generateAndSendOtp({
+      email: cleanEmail,
+      phone: cleanPhone,
+      channel: channel || (cleanEmail ? 'EMAIL' : 'SMS'),
+      origin: hostOrigin,
+    });
     res.json(result);
   } catch (error) {
-    res.status(500).json({ error: 'Erreur lors de l\'envoi du SMS de confirmation.' });
+    res.status(500).json({ error: error.message || 'Erreur lors de l\'envoi du code de confirmation.' });
   }
 });
 
-// 0b. SEND OTP SMS FOR PASSWORD RECOVERY (FORGOT PASSWORD)
+// 0b. SEND OTP FOR PASSWORD RECOVERY (FORGOT PASSWORD)
 router.post('/forgot-password/send-otp', strictAuthRateLimiter, validateRequest(forgotPasswordSendOtpSchema), async (req, res) => {
-  const { phone } = req.validated.body;
-  const cleanPhone = phone.trim();
+  const { identifier, phone, email, channel } = req.validated.body;
+  const rawId = (identifier || phone || email || '').trim();
+  const cleanEmail = rawId.toLowerCase();
+  const hostOrigin = req.headers.host || 'ma-on.onrender.com';
 
-  // Find user by phone number (with or without +)
-  const user = db.prepare('SELECT id, name, email, phone FROM users WHERE phone = ? OR phone = ?').get(
-    cleanPhone,
-    cleanPhone.startsWith('+') ? cleanPhone : `+${cleanPhone}`
+  // Find user by email or phone number
+  const user = db.prepare('SELECT id, name, email, phone FROM users WHERE LOWER(email) = ? OR phone = ? OR phone = ?').get(
+    cleanEmail,
+    rawId,
+    rawId.startsWith('+') ? rawId : `+${rawId}`
   );
 
   if (!user) {
-    return res.status(404).json({ error: 'Aucun compte associé à ce numéro de téléphone n\'a été trouvé.' });
+    return res.status(404).json({ error: 'Aucun compte associé à cet email ou numéro de téléphone n\'a été trouvé.' });
   }
 
   try {
-    const result = await generateAndSendPhoneOtp(user.phone, user.email);
+    const chosenChannel = channel || (rawId.includes('@') ? 'EMAIL' : 'SMS');
+    const result = await generateAndSendOtp({
+      email: user.email,
+      phone: user.phone,
+      channel: chosenChannel,
+      name: user.name,
+      origin: hostOrigin,
+    });
+
     res.json({
       success: true,
-      message: `Code de récupération SMS envoyé avec succès au ${user.phone}.`,
-      phone: user.phone,
+      message: chosenChannel.toUpperCase() === 'EMAIL'
+        ? `Code de récupération envoyé par email à ${user.email}.`
+        : `Code de récupération SMS envoyé au ${user.phone}.`,
+      identifier: chosenChannel.toUpperCase() === 'EMAIL' ? user.email : user.phone,
+      channel: chosenChannel,
       simulatedCode: result.simulatedCode,
+      webOtpMessage: result.webOtpMessage,
     });
   } catch (error) {
-    res.status(500).json({ error: 'Erreur lors de l\'envoi du SMS de réinitialisation.' });
+    res.status(500).json({ error: error.message || 'Erreur lors de l\'envoi du code de réinitialisation.' });
   }
 });
 
 // 0c. RESET PASSWORD VIA OTP VERIFICATION
 router.post('/forgot-password/reset', strictAuthRateLimiter, validateRequest(forgotPasswordResetSchema), (req, res) => {
-  const { phone, otpCode, newPassword } = req.validated.body;
-  const cleanPhone = phone.trim();
+  const { identifier, phone, email, otpCode, newPassword } = req.validated.body;
+  const rawId = (identifier || phone || email || '').trim();
+  const cleanEmail = rawId.toLowerCase();
 
-  const user = db.prepare('SELECT id, phone, email FROM users WHERE phone = ? OR phone = ?').get(
-    cleanPhone,
-    cleanPhone.startsWith('+') ? cleanPhone : `+${cleanPhone}`
+  const user = db.prepare('SELECT id, phone, email FROM users WHERE LOWER(email) = ? OR phone = ? OR phone = ?').get(
+    cleanEmail,
+    rawId,
+    rawId.startsWith('+') ? rawId : `+${rawId}`
   );
 
   if (!user) {
     return res.status(404).json({ error: 'Compte introuvable.' });
   }
 
-  // Verify OTP
-  const otpVerification = verifyPhoneOtp(user.phone, otpCode);
+  // Verify OTP for user email or phone
+  let otpVerification = verifyOtp(user.email, otpCode);
+  if (!otpVerification.valid && user.phone) {
+    otpVerification = verifyOtp(user.phone, otpCode);
+  }
+
   if (!otpVerification.valid) {
-    return res.status(400).json({ error: otpVerification.error || 'Code SMS invalide ou expiré.' });
+    return res.status(400).json({ error: otpVerification.error || 'Code de confirmation invalide ou expiré.' });
   }
 
   // Hash new password and update user in database
@@ -263,10 +307,13 @@ router.post('/signup', validateRequest(signupSchema), (req, res) => {
   const cleanPhone = phone.trim();
   const cleanSponsor = sponsorCode ? sponsorCode.trim().toUpperCase() : 'ILL-88392';
 
-  // 1. Verify Phone OTP
-  const otpVerification = verifyPhoneOtp(cleanPhone, otpCode);
+  // 1. Verify Email or Phone OTP
+  let otpVerification = verifyOtp(cleanEmail, otpCode);
+  if (!otpVerification.valid && cleanPhone) {
+    otpVerification = verifyOtp(cleanPhone, otpCode);
+  }
   if (!otpVerification.valid) {
-    return res.status(400).json({ error: otpVerification.error || 'Code de confirmation SMS invalide ou expiré.' });
+    return res.status(400).json({ error: otpVerification.error || 'Code de confirmation invalide ou expiré.' });
   }
 
   // 2. Check for existing email or phone
