@@ -44,8 +44,8 @@ export const AuthView = () => {
   const [authSuccess, setAuthSuccess] = useState('');
 
   // Login Form fields
-  const [loginIdentifier, setLoginIdentifier] = useState('alex.kouassi@illuminati-mlm.com');
-  const [loginPassword, setLoginPassword] = useState('Alex@2026Password');
+  const [loginIdentifier, setLoginIdentifier] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
 
   // Sign Up Form fields
   const [signupName, setSignupName] = useState('');
@@ -165,9 +165,9 @@ export const AuthView = () => {
     setAuthError('');
     setAuthSuccess('');
     setIsSubmitting(true);
-    const success = await login(loginIdentifier.trim(), loginPassword);
-    if (!success) {
-      setAuthError('Identifiants ou mot de passe incorrects. Vérifiez votre email ou numéro.');
+    const res = await login(loginIdentifier.trim(), loginPassword);
+    if (!res || !res.success) {
+      setAuthError(res?.error || 'Identifiants ou mot de passe incorrects. Vérifiez votre email ou numéro.');
     }
     setIsSubmitting(false);
   };
@@ -249,7 +249,7 @@ export const AuthView = () => {
     }
 
     setIsSubmitting(true);
-    const success = await signup({
+    const res = await signup({
       name: signupName.trim(),
       email: signupEmail.trim().toLowerCase(),
       phone: signupPhone.trim(),
@@ -260,8 +260,8 @@ export const AuthView = () => {
       channel: otpChannel,
     });
 
-    if (!success) {
-      setAuthError('Code de confirmation invalide ou erreur lors de la création.');
+    if (!res || !res.success) {
+      setAuthError(res?.error || 'Code de confirmation invalide ou erreur lors de la création.');
     }
     setIsSubmitting(false);
   };

@@ -94,7 +94,7 @@ const MainApp = () => {
         {activeTab === 'finance' && <FinanceView />}
         {activeTab === 'ranks' && <RanksView />}
         {activeTab === 'history' && <HistoryView />}
-        {activeTab === 'profile' && <ProfileView />}
+        {(activeTab === 'profile' || activeTab === 'settings') && <ProfileView />}
       </main>
 
       {/* Glassmorphic Bottom Bar */}

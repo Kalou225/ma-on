@@ -3,7 +3,7 @@ import { useApp } from '../context/AppContext';
 import { Bell, ShieldCheck, ShieldAlert, Sparkles, User, X, Smartphone, LogOut } from 'lucide-react';
 
 export const Header = () => {
-  const { user, isAdminMode, setIsAdminMode, notifications, markNotificationsRead, logout } = useApp();
+  const { user, setActiveTab, notifications, markNotificationsRead, logout } = useApp();
   const [showNotifications, setShowNotifications] = useState(false);
 
   const unreadCount = notifications.filter((n) => !n.read).length;
@@ -11,9 +11,13 @@ export const Header = () => {
   return (
     <header className="sticky top-0 z-40 glass-header px-4 py-3 border-b border-white/5">
       <div className="max-w-md mx-auto flex items-center justify-between">
-        {/* Brand Logo & User Profile */}
-        <div className="flex items-center space-x-3">
-          <div className="w-10 h-10 rounded-full gold-gradient-bg p-[2px] flex items-center justify-center shadow-lg relative overflow-hidden">
+        {/* Brand Logo & User Profile - Clickable shortcut to Settings */}
+        <div
+          onClick={() => setActiveTab('settings')}
+          className="flex items-center space-x-3 cursor-pointer group hover:opacity-95 transition-opacity"
+          title="Ouvrir les Paramètres du compte"
+        >
+          <div className="w-10 h-10 rounded-full gold-gradient-bg p-[2px] flex items-center justify-center shadow-lg relative overflow-hidden group-hover:scale-105 transition-transform">
             {user.avatarUrl ? (
               <img
                 src={user.avatarUrl}

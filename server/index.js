@@ -22,6 +22,9 @@ import { logger } from './services/auditLogger.js';
 
 const app = express();
 
+// Enable Trust Proxy for Render.com and cloud load balancers (so real client IPs are used for rate limiting)
+app.set('trust proxy', 1);
+
 // 1. Configure Security Headers (Helmet + CORS)
 configureSecurityHeaders(app);
 

@@ -98,9 +98,44 @@ async function runGlobalTests() {
   console.log('   ✅ Modification du mot de passe vérifiée avec succès !');
 
   // ----------------------------------------------------
-  // TEST 5 : CONTRÔLE FINANCIER & PRÉ-REMPLISSAGE RETRAIT
+  // TEST 5 : VÉRIFICATION RECONNEXION EMAIL & TÉLÉPHONE
   // ----------------------------------------------------
-  console.log('\n5️⃣ Test : Règles de retrait de commissions et plafonds...');
+  console.log('\n5️⃣ Test : Reconnexion sécurisée du compte (Email, Téléphone avec/sans espaces)...');
+  
+  // Test lookup by email
+  const userByEmail = db.prepare('SELECT * FROM users WHERE LOWER(TRIM(email)) = ?').get(testEmail.toLowerCase());
+  assert.ok(userByEmail, 'Recherche par email doit trouver le compte créé.');
+  assert.ok(bcrypt.compareSync(newPassword, userByEmail.password_hash), 'Connexion email avec mot de passe valide.');
+
+  // Test lookup by phone formatted with spaces
+  const digitsOnlyPhone = testPhone.replace(/\D/g, '');
+  const userByPhone = db.prepare(`
+    SELECT * FROM users 
+    WHERE LOWER(TRIM(email)) = ? 
+       OR phone = ? 
+       OR phone = ? 
+       OR REPLACE(REPLACE(REPLACE(phone, ' ', ''), '-', ''), '+', '') = ?
+       OR REPLACE(REPLACE(phone, ' ', ''), '-', '') = ?
+  `).get(
+    '0711223344',
+    '0711223344',
+    '+2250711223344',
+    digitsOnlyPhone,
+    `+${digitsOnlyPhone}`
+  );
+  assert.ok(userByPhone, 'Recherche par téléphone sans espaces/indicatif doit trouver le compte.');
+  assert.ok(bcrypt.compareSync(newPassword, userByPhone.password_hash), 'Connexion téléphone avec mot de passe valide.');
+
+  // Test wrong password rejection
+  assert.ok(!bcrypt.compareSync('MauvaisMotDePasse123!', userByEmail.password_hash), 'Mauvais mot de passe doit être rejeté.');
+  console.log('   ✅ Reconnexion par Email validée avec succès !');
+  console.log('   ✅ Reconnexion par Numéro Mobile (avec/sans espaces) validée avec succès !');
+  console.log('   ✅ Rejet strict des mauvais mots de passe validé avec succès !');
+
+  // ----------------------------------------------------
+  // TEST 6 : CONTRÔLE FINANCIER & PRÉ-REMPLISSAGE RETRAIT
+  // ----------------------------------------------------
+  console.log('\n6️⃣ Test : Règles de retrait de commissions et plafonds...');
   const maxWithdrawable = Math.floor(updatedUser.activation_balance / 3); // 150 000 / 3 = 50 000
   assert.strictEqual(maxWithdrawable, 50000, 'Le plafond de 1/3 doit être de 50 000 FCFA.');
   console.log(`   ✅ Solde activation : ${updatedUser.activation_balance} F -> Plafond 1/3 calculé : ${maxWithdrawable} F`);

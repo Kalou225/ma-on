@@ -148,11 +148,26 @@ router.post('/forgot-password/send-otp', strictAuthRateLimiter, validateRequest(
   const hostOrigin = req.headers.host || 'ma-on.onrender.com';
 
   // Find user by email or phone number
-  const user = db.prepare('SELECT id, name, email, phone FROM users WHERE LOWER(email) = ? OR phone = ? OR phone = ?').get(
-    cleanEmail,
-    rawId,
-    rawId.startsWith('+') ? rawId : `+${rawId}`
-  );
+  const digitsOnly = rawId.replace(/\D/g, '');
+  let user = null;
+  if (cleanEmail.includes('@')) {
+    user = db.prepare('SELECT id, name, email, phone FROM users WHERE LOWER(TRIM(email)) = ?').get(cleanEmail);
+  } else {
+    user = db.prepare(`
+      SELECT id, name, email, phone FROM users 
+      WHERE LOWER(TRIM(email)) = ? 
+         OR phone = ? 
+         OR phone = ? 
+         OR REPLACE(REPLACE(REPLACE(phone, ' ', ''), '-', ''), '+', '') = ?
+         OR REPLACE(REPLACE(phone, ' ', ''), '-', '') = ?
+    `).get(
+      cleanEmail,
+      rawId,
+      rawId.startsWith('+') ? rawId : `+${rawId}`,
+      digitsOnly,
+      digitsOnly ? `+${digitsOnly}` : rawId
+    );
+  }
 
   if (!user) {
     return res.status(404).json({ error: 'Aucun compte associé à cet email ou numéro de téléphone n\'a été trouvé.' });
@@ -188,12 +203,27 @@ router.post('/forgot-password/reset', strictAuthRateLimiter, validateRequest(for
   const { identifier, phone, email, otpCode, newPassword } = req.validated.body;
   const rawId = (identifier || phone || email || '').trim();
   const cleanEmail = rawId.toLowerCase();
+  const digitsOnly = rawId.replace(/\D/g, '');
 
-  const user = db.prepare('SELECT id, phone, email FROM users WHERE LOWER(email) = ? OR phone = ? OR phone = ?').get(
-    cleanEmail,
-    rawId,
-    rawId.startsWith('+') ? rawId : `+${rawId}`
-  );
+  let user = null;
+  if (cleanEmail.includes('@')) {
+    user = db.prepare('SELECT id, phone, email FROM users WHERE LOWER(TRIM(email)) = ?').get(cleanEmail);
+  } else {
+    user = db.prepare(`
+      SELECT id, phone, email FROM users 
+      WHERE LOWER(TRIM(email)) = ? 
+         OR phone = ? 
+         OR phone = ? 
+         OR REPLACE(REPLACE(REPLACE(phone, ' ', ''), '-', ''), '+', '') = ?
+         OR REPLACE(REPLACE(phone, ' ', ''), '-', '') = ?
+    `).get(
+      cleanEmail,
+      rawId,
+      rawId.startsWith('+') ? rawId : `+${rawId}`,
+      digitsOnly,
+      digitsOnly ? `+${digitsOnly}` : rawId
+    );
+  }
 
   if (!user) {
     return res.status(404).json({ error: 'Compte introuvable.' });
@@ -230,29 +260,44 @@ router.post('/login', strictAuthRateLimiter, validateRequest(loginSchema), (req,
   const { email: identifier, password, mfaToken } = req.validated.body;
   const cleanIdentifier = identifier.trim().toLowerCase();
   const rawIdentifier = identifier.trim();
+  const digitsOnly = rawIdentifier.replace(/\D/g, '');
 
-  // Search by email or phone
-  const user = db.prepare('SELECT * FROM users WHERE LOWER(email) = ? OR phone = ? OR phone = ?').get(
-    cleanIdentifier,
-    rawIdentifier,
-    rawIdentifier.startsWith('+') ? rawIdentifier : `+${rawIdentifier}`
-  );
+  // Robust search by email or phone (handles formats with or without spaces, country codes, dashes)
+  let user = null;
+  if (cleanIdentifier.includes('@')) {
+    user = db.prepare('SELECT * FROM users WHERE LOWER(TRIM(email)) = ?').get(cleanIdentifier);
+  } else {
+    user = db.prepare(`
+      SELECT * FROM users 
+      WHERE LOWER(TRIM(email)) = ? 
+         OR phone = ? 
+         OR phone = ? 
+         OR REPLACE(REPLACE(REPLACE(phone, ' ', ''), '-', ''), '+', '') = ?
+         OR REPLACE(REPLACE(phone, ' ', ''), '-', '') = ?
+    `).get(
+      cleanIdentifier,
+      rawIdentifier,
+      rawIdentifier.startsWith('+') ? rawIdentifier : `+${rawIdentifier}`,
+      digitsOnly,
+      digitsOnly ? `+${digitsOnly}` : rawIdentifier
+    );
+  }
 
   if (!user) {
     logSecurityEvent('LOGIN_FAILED_UNKNOWN_USER', { ip: req.ip, details: { identifier: rawIdentifier }, severity: 'WARNING' });
-    return res.status(401).json({ error: 'Identifiants ou mot de passe incorrects.' });
+    return res.status(401).json({ error: 'Identifiants ou mot de passe incorrects. Vérifiez votre email ou numéro.' });
   }
 
   // Check account lockout
   if (user.lockout_until && new Date(user.lockout_until) > new Date()) {
     logSecurityEvent('LOGIN_BLOCKED_LOCKOUT', { userId: user.id, ip: req.ip, severity: 'WARNING' });
-    return res.status(423).json({ error: 'Compte temporairement bloqué suite à des échecs répétés.' });
+    return res.status(423).json({ error: 'Compte temporairement bloqué suite à des échecs répétés. Veuillez patienter.' });
   }
 
   // Verify Bcrypt Hash
   const isMatch = bcrypt.compareSync(password, user.password_hash);
   if (!isMatch) {
-    const attempts = user.failed_attempts + 1;
+    const attempts = (user.failed_attempts || 0) + 1;
     let lockout = null;
 
     if (attempts >= 5) {
@@ -261,7 +306,7 @@ router.post('/login', strictAuthRateLimiter, validateRequest(loginSchema), (req,
     }
 
     db.prepare('UPDATE users SET failed_attempts = ?, lockout_until = ? WHERE id = ?').run(attempts, lockout, user.id);
-    return res.status(401).json({ error: 'Identifiants ou mot de passe incorrects.' });
+    return res.status(401).json({ error: 'Identifiants ou mot de passe incorrects. Vérifiez votre mot de passe.' });
   }
 
   // Check MFA if enabled

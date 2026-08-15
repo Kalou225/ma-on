@@ -63,6 +63,20 @@ export const ProfileView = () => {
 
   return (
     <div className="space-y-4 pb-6 animate-in fade-in">
+      {/* Screen Title Header */}
+      <div className="flex items-center justify-between px-1 pt-1">
+        <div>
+          <h1 className="text-xl font-black text-white flex items-center gap-2">
+            <Settings className="w-5 h-5 text-[#F2CA50]" />
+            <span>Paramètres & Profil</span>
+          </h1>
+          <p className="text-xs text-[#99907c]">Gérez vos informations, sécurité et coordonnées de retrait</p>
+        </div>
+        <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-[#F2CA50]/15 text-[#F2CA50] border border-[#F2CA50]/30">
+          Espace Membre
+        </span>
+      </div>
+
       {/* Hidden file input for photo upload */}
       <input
         type="file"

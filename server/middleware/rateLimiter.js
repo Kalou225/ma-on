@@ -1,21 +1,22 @@
 import rateLimit from 'express-rate-limit';
 import { logSecurityEvent } from '../services/auditLogger.js';
 
-// General API Rate Limiter (Max 100 requests / 15 min)
+// General API Rate Limiter (Max 300 requests / 15 min to accommodate regular polling)
 export const globalRateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 100,
+  max: 300,
   standardHeaders: true,
   legacyHeaders: false,
   message: {
-    error: 'Trop de requêtes envoyées depuis cette adresse IP. Veuillez réespayer dans 15 minutes.',
+    error: 'Trop de requêtes envoyées depuis cette adresse IP. Veuillez réessayer dans quelques minutes.',
   },
 });
 
-// Strict Rate Limiter for Authentication & Deposit endpoints (Max 5 attempts / 15 min)
+// Rate Limiter for Authentication endpoints (Max 60 attempts / 15 min, skips successful requests)
 export const strictAuthRateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 5,
+  max: 60,
+  skipSuccessfulRequests: true,
   standardHeaders: true,
   legacyHeaders: false,
   handler: (req, res) => {
@@ -25,7 +26,7 @@ export const strictAuthRateLimiter = rateLimit({
       severity: 'WARNING',
     });
     res.status(429).json({
-      error: 'Nombre maximal de tentatives de connexion atteint. Compte temporairement verrouillé (15 min).',
+      error: 'Trop de tentatives de connexion échouées. Veuillez patienter quelques instants avant de réessayer.',
     });
   },
 });

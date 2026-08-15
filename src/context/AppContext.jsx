@@ -348,10 +348,11 @@ export const AppProvider = ({ children }) => {
       setActiveTab('dashboard');
       showToastNotification('Connexion réussie ! Bienvenue sur Eco-Finance.', 'success');
       await refreshUserData();
-      return true;
+      return { success: true };
     } catch (err) {
-      showToastNotification(err.message || 'Échec de la connexion', 'error');
-      return false;
+      const errMsg = err.message || 'Échec de la connexion';
+      showToastNotification(errMsg, 'error');
+      return { success: false, error: errMsg };
     }
   };
 
@@ -455,10 +456,11 @@ export const AppProvider = ({ children }) => {
       setActiveTab('dashboard');
       showToastNotification('Inscription et vérification réussies ! Bienvenue sur Eco-Finance.', 'success');
       await refreshUserData();
-      return true;
+      return { success: true, user: data.user };
     } catch (err) {
-      showToastNotification(err.message || 'Échec de l\'inscription', 'error');
-      return false;
+      const errMsg = err.message || 'Échec de l\'inscription';
+      showToastNotification(errMsg, 'error');
+      return { success: false, error: errMsg };
     }
   };
 
