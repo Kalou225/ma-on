@@ -29,6 +29,14 @@ router.post('/submit', authenticateToken, validateRequest(depositSchema), (req, 
   const { amount, provider, recipientNumber, senderNumber, txnId, dateTime } = req.validated.body;
   const userId = req.user.id;
 
+  // Check if user is already active: No further activation deposits allowed
+  const currentUser = db.prepare('SELECT status, activation_balance FROM users WHERE id = ?').get(userId);
+  if (currentUser && currentUser.status === 'ACTIF' && (currentUser.activation_balance || 0) > 0) {
+    return res.status(400).json({
+      error: 'Votre compte est déjà activé. Les dépôts d\'activation supplémentaires ne sont plus autorisés. Pour passer aux grades supérieurs, utilisez le bouton "Monter de grade" avec votre Solde Commission.',
+    });
+  }
+
   // Check Anti-Replay: Ensure txnId is unique
   const existingTxn = db.prepare('SELECT id FROM transactions WHERE txn_id = ?').get(txnId.toUpperCase());
   if (existingTxn) {
@@ -37,7 +45,7 @@ router.post('/submit', authenticateToken, validateRequest(depositSchema), (req, 
   }
 
   const id = `TXN-${Math.floor(1000 + Math.random() * 9000)}`;
-  const isActivation = req.user.status === 'INACTIF';
+  const isActivation = true;
 
   db.prepare(`
     INSERT INTO transactions (id, user_id, type, label, amount, provider, recipient_number, sender_number, txn_id, date_time, status, note)

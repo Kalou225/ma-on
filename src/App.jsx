@@ -6,6 +6,7 @@ import { Toast } from './components/Toast';
 import { ManualDepositModal } from './components/ManualDepositModal';
 import { WithdrawModal } from './components/WithdrawModal';
 import { RankSuccessModal } from './components/RankSuccessModal';
+import { UpgradeRankModal } from './components/UpgradeRankModal';
 import { ShareReferralModal } from './components/ShareReferralModal';
 import { InactivityTimer } from './components/InactivityTimer';
 import { ChatbotWidget } from './components/ChatbotWidget';
@@ -110,6 +111,7 @@ const MainApp = () => {
       <ManualDepositModal />
       <WithdrawModal />
       <RankSuccessModal />
+      <UpgradeRankModal />
       <ShareReferralModal />
       <AccountSettingsModal />
       <InactivityTimer />

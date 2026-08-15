@@ -154,6 +154,12 @@ export const api = {
     getTree: async () => {
       return customFetch('/network/tree');
     },
+    upgradeRank: async (targetRank) => {
+      return customFetch('/network/upgrade-rank', {
+        method: 'POST',
+        body: targetRank ? JSON.stringify({ targetRank }) : undefined,
+      });
+    },
   },
 
   // Admin API

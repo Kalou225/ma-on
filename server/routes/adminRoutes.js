@@ -5,7 +5,7 @@ import { config } from '../config/security.js';
 import { authenticateToken, requireRole } from '../middleware/authMiddleware.js';
 import { logSecurityEvent } from '../services/auditLogger.js';
 import { createNotification } from '../services/notificationService.js';
-import { calculateRankAndRate } from '../services/rankService.js';
+import { calculateRankAndRate, getRankDetails } from '../services/rankService.js';
 
 const router = express.Router();
 
@@ -143,10 +143,13 @@ router.post('/approve-deposit/:id', (req, res) => {
 
         while (currentSponsorCode && depth < maxDepth) {
           depth++;
-          const currentSponsor = db.prepare('SELECT id, name, activation_balance, sponsor_code FROM users WHERE my_referral_code = ?').get(currentSponsorCode);
+          const currentSponsor = db.prepare('SELECT id, name, rank, activation_balance, sponsor_code FROM users WHERE my_referral_code = ?').get(currentSponsorCode);
           if (!currentSponsor) break;
 
-          const { rank, rate, label } = calculateRankAndRate(currentSponsor.activation_balance);
+          const sponsorRank = getRankDetails(currentSponsor.rank || calculateRankAndRate(currentSponsor.activation_balance).rank);
+          const rank = sponsorRank.name;
+          const rate = sponsorRank.rate;
+          const label = sponsorRank.label;
           const networkComm = Math.round(txn.amount * rate);
 
           if (networkComm > 0) {

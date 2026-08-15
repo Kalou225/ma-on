@@ -1,9 +1,15 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { Wallet, ArrowDownRight, ArrowUpRight, Copy, Check, Clock, PhoneCall, ShieldCheck, Filter } from 'lucide-react';
+import { Wallet, ArrowDownRight, ArrowUpRight, Copy, Check, Clock, PhoneCall, ShieldCheck, Filter, Trophy } from 'lucide-react';
+import { getNextRank } from '../utils/ranks';
 
 export const FinanceView = () => {
-  const { user, paymentNumbers, transactions, setShowDepositModal, setShowWithdrawModal } = useApp();
+  const { user, paymentNumbers, transactions, setShowDepositModal, setShowWithdrawModal, setShowUpgradeRankModal } = useApp();
+
+  const isAccountActive = user.status === 'ACTIF' && (user.activationBalance || 0) > 0;
+  const nextRank = getNextRank(user.rank || 'Apprenti');
+  const userCommission = user.commissionBalance ?? user.balance ?? 0;
+  const isEligibleForUpgrade = nextRank && userCommission >= nextRank.cost;
 
   const [filterStatus, setFilterStatus] = useState('ALL'); // 'ALL' | 'EN_ATTENTE' | 'VALIDÉ' | 'REJETÉ'
   const [copiedId, setCopiedId] = useState(null);
@@ -31,7 +37,7 @@ export const FinanceView = () => {
             <h2 className="font-bold text-[#e0e3e6] text-sm">Gestion Financière</h2>
           </div>
           <span className="text-[11px] font-bold text-[#10B981] bg-[#10B981]/10 px-2.5 py-1 rounded-full border border-[#10B981]/30">
-            Compte {user.status}
+            {user.rank} • {user.status}
           </span>
         </div>
 
@@ -46,13 +52,32 @@ export const FinanceView = () => {
 
         {/* Buttons for Manual Deposit & Withdrawal */}
         <div className="grid grid-cols-2 gap-2.5 pt-2 border-t border-white/10">
-          <button
-            onClick={() => setShowDepositModal(true)}
-            className="py-3 px-3 rounded-2xl gold-gradient-bg text-black font-bold text-xs flex items-center justify-center space-x-2 shadow-lg hover:brightness-110 active:scale-95 transition-all"
-          >
-            <ArrowDownRight className="w-4 h-4" />
-            <span>Faire un Dépôt Manuel</span>
-          </button>
+          {!isAccountActive ? (
+            <button
+              onClick={() => setShowDepositModal(true)}
+              className="py-3 px-3 rounded-2xl gold-gradient-bg text-black font-bold text-xs flex items-center justify-center space-x-2 shadow-lg hover:brightness-110 active:scale-95 transition-all"
+            >
+              <ArrowDownRight className="w-4 h-4" />
+              <span>Dépôt d'Activation</span>
+            </button>
+          ) : (
+            <button
+              onClick={() => setShowUpgradeRankModal(true)}
+              className={`py-3 px-3 rounded-2xl font-bold text-xs flex items-center justify-center space-x-1.5 shadow-lg transition-all active:scale-95 border ${
+                isEligibleForUpgrade
+                  ? 'gold-gradient-bg text-black border-[#F2CA50] hover:brightness-110 shadow-[0_0_15px_rgba(242,202,80,0.3)]'
+                  : 'bg-[#191c1e] text-[#F2CA50] border-[#d4af37]/30 hover:border-[#F2CA50]'
+              }`}
+            >
+              <Trophy className={`w-4 h-4 ${isEligibleForUpgrade ? 'text-black' : 'text-[#F2CA50]'}`} />
+              <span className="truncate">Monter de grade</span>
+              {isEligibleForUpgrade && (
+                <span className="text-[8px] bg-black text-[#F2CA50] px-1 py-0.2 rounded font-black uppercase shrink-0">
+                  Prêt
+                </span>
+              )}
+            </button>
+          )}
 
           <button
             onClick={() => setShowWithdrawModal(true)}

@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { X, Copy, Check, Send, AlertCircle, PhoneCall, ShieldCheck, ArrowRight } from 'lucide-react';
+import { X, Copy, Check, Send, AlertCircle, PhoneCall, ShieldCheck, ArrowRight, Trophy } from 'lucide-react';
 
 export const ManualDepositModal = () => {
-  const { showDepositModal, setShowDepositModal, paymentNumbers, submitManualDeposit, user } = useApp();
+  const { showDepositModal, setShowDepositModal, setShowUpgradeRankModal, paymentNumbers, submitManualDeposit, user } = useApp();
 
   const [selectedProviderId, setSelectedProviderId] = useState(paymentNumbers[0]?.id || 1);
   const [amount, setAmount] = useState(user.status === 'INACTIF' ? 25000 : 50000);
@@ -15,6 +15,7 @@ export const ManualDepositModal = () => {
 
   if (!showDepositModal) return null;
 
+  const isAccountActive = user.status === 'ACTIF' && (user.activationBalance || 0) > 0;
   const selectedProvider = paymentNumbers.find((p) => p.id === parseInt(selectedProviderId));
 
   const handleCopyNumber = (num, id) => {
@@ -61,7 +62,7 @@ export const ManualDepositModal = () => {
               <PhoneCall className="w-4 h-4 text-[#F2CA50]" />
             </div>
             <div>
-              <h3 className="font-bold text-sm text-[#e0e3e6]">Dépôt Manuel</h3>
+              <h3 className="font-bold text-sm text-[#e0e3e6]">Dépôt d'Activation</h3>
               <p className="text-[11px] text-[#99907c]">Transfert direct vers numéro Admin</p>
             </div>
           </div>
@@ -75,18 +76,47 @@ export const ManualDepositModal = () => {
 
         {/* Modal Content */}
         <div className="p-5 overflow-y-auto space-y-4">
-          {/* Notice for Inactive Account */}
-          {user.status === 'INACTIF' && (
-            <div className="p-3.5 rounded-2xl bg-[#F2CA50]/10 border border-[#F2CA50]/30 flex items-start space-x-3">
-              <ShieldCheck className="w-5 h-5 text-[#F2CA50] shrink-0 mt-0.5" />
-              <div>
-                <p className="text-xs font-bold text-[#F2CA50]">Activation du compte membre</p>
-                <p className="text-[11px] text-[#d0c5af] mt-0.5">
-                  Effectuez un dépôt de qualification d'au moins 25 000 FCFA pour débloquer votre compte et votre lien de parrainage.
+          {isAccountActive ? (
+            <div className="p-4 text-center space-y-4">
+              <div className="w-14 h-14 rounded-2xl gold-gradient-bg p-[2px] mx-auto shadow-lg">
+                <div className="w-full h-full bg-[#101416] rounded-[14px] flex items-center justify-center">
+                  <ShieldCheck className="w-8 h-8 text-[#10B981]" />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <h4 className="text-base font-bold text-white">Votre Compte est Déjà Activé</h4>
+                <p className="text-xs text-[#d0c5af]">
+                  Votre statut est <strong>ACTIF</strong> (Rang : <strong className="text-[#F2CA50]">{user.rank}</strong>) avec un Solde d'Activation de <strong>{(user.activationBalance || 0).toLocaleString()} FCFA</strong>.
+                </p>
+                <p className="text-[11px] text-[#99907c] pt-1">
+                  Les dépôts d'activation supplémentaires ne sont plus requis. Pour passer aux grades supérieurs et augmenter vos taux de commissions réseau, utilisez la fonction <strong>Monter de grade</strong> avec votre Solde Commission.
                 </p>
               </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setShowDepositModal(false);
+                  setShowUpgradeRankModal(true);
+                }}
+                className="w-full py-3.5 rounded-xl gold-gradient-bg text-black font-bold text-xs uppercase tracking-wider flex items-center justify-center space-x-2 shadow-lg hover:brightness-110 active:scale-95 transition-all"
+              >
+                <Trophy className="w-4 h-4" />
+                <span>Monter de Grade via Solde Commission</span>
+              </button>
             </div>
-          )}
+          ) : (
+            <>
+              {/* Notice for Inactive Account */}
+              <div className="p-3.5 rounded-2xl bg-[#F2CA50]/10 border border-[#F2CA50]/30 flex items-start space-x-3">
+                <ShieldCheck className="w-5 h-5 text-[#F2CA50] shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-xs font-bold text-[#F2CA50]">Premier Dépôt de Qualification</p>
+                  <p className="text-[11px] text-[#d0c5af] mt-0.5">
+                    Effectuez votre 1er dépôt pour activer votre compte et débloquer vos commissions. Le grade attribué dépendra du montant déposé (à partir de 1 000 FCFA).
+                  </p>
+                </div>
+              </div>
 
           {/* Step 1: Select Admin Payment Number */}
           <div>
@@ -233,6 +263,8 @@ export const ManualDepositModal = () => {
               <span>Soumettre le Dépôt à l'Admin</span>
             </button>
           </form>
+          </>
+          )}
         </div>
       </div>
     </div>

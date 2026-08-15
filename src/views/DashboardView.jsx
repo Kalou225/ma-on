@@ -1,14 +1,20 @@
 import React from 'react';
 import { useApp } from '../context/AppContext';
-import { Wallet, ArrowDownRight, ArrowUpRight, Users, Award, ShieldAlert, Sparkles, Share2, Check, ChevronRight, PhoneCall } from 'lucide-react';
+import { Wallet, ArrowDownRight, ArrowUpRight, Users, Award, ShieldAlert, Sparkles, Share2, Check, ChevronRight, PhoneCall, Trophy } from 'lucide-react';
+import { getNextRank } from '../utils/ranks';
 
 export const DashboardView = () => {
-  const { user, setShowDepositModal, setShowWithdrawModal, setShowShareModal, setActiveTab, transactions } = useApp();
+  const { user, setShowDepositModal, setShowWithdrawModal, setShowUpgradeRankModal, setShowShareModal, setActiveTab, transactions } = useApp();
+
+  const isAccountActive = user.status === 'ACTIF' && (user.activationBalance || 0) > 0;
+  const nextRank = getNextRank(user.rank || 'Apprenti');
+  const userCommission = user.commissionBalance ?? user.balance ?? 0;
+  const isEligibleForUpgrade = nextRank && userCommission >= nextRank.cost;
 
   return (
     <div className="space-y-4 pb-6 animate-in fade-in">
       {/* Account Activation Banner if Inactive (Orange) */}
-      {(user.status === 'INACTIF' || (user.activationBalance || 0) <= 0) && (
+      {!isAccountActive && (
         <div className="p-4 rounded-3xl bg-[#F2CA50]/10 border border-[#F2CA50]/30 space-y-2 shadow-lg">
           <div className="flex items-center space-x-2 text-[#F2CA50]">
             <ShieldAlert className="w-5 h-5 shrink-0" />
@@ -35,8 +41,9 @@ export const DashboardView = () => {
           <span className="text-xs font-semibold uppercase tracking-wider text-[#99907c]">
             Synthèse Financière
           </span>
-          <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-[#F2CA50]/15 text-[#F2CA50] border border-[#F2CA50]/30">
-            {user.rank}
+          <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-[#F2CA50]/15 text-[#F2CA50] border border-[#F2CA50]/30 flex items-center space-x-1">
+            <Award className="w-3 h-3" />
+            <span>{user.rank}</span>
           </span>
         </div>
 
@@ -72,13 +79,32 @@ export const DashboardView = () => {
 
         {/* Action Buttons Row */}
         <div className="grid grid-cols-2 gap-2.5 pt-2 border-t border-white/10">
-          <button
-            onClick={() => setShowDepositModal(true)}
-            className="py-3 px-3 rounded-2xl gold-gradient-bg text-black font-bold text-xs flex items-center justify-center space-x-2 shadow-lg hover:brightness-110 active:scale-95 transition-all"
-          >
-            <ArrowDownRight className="w-4 h-4" />
-            <span>Dépôt / Activation</span>
-          </button>
+          {!isAccountActive ? (
+            <button
+              onClick={() => setShowDepositModal(true)}
+              className="py-3 px-3 rounded-2xl gold-gradient-bg text-black font-bold text-xs flex items-center justify-center space-x-2 shadow-lg hover:brightness-110 active:scale-95 transition-all"
+            >
+              <ArrowDownRight className="w-4 h-4" />
+              <span>Dépôt / Activation</span>
+            </button>
+          ) : (
+            <button
+              onClick={() => setShowUpgradeRankModal(true)}
+              className={`py-3 px-3 rounded-2xl font-bold text-xs flex items-center justify-center space-x-1.5 shadow-lg transition-all active:scale-95 border ${
+                isEligibleForUpgrade
+                  ? 'gold-gradient-bg text-black border-[#F2CA50] hover:brightness-110 shadow-[0_0_15px_rgba(242,202,80,0.3)]'
+                  : 'bg-[#191c1e] text-[#F2CA50] border-[#d4af37]/30 hover:border-[#F2CA50]'
+              }`}
+            >
+              <Trophy className={`w-4 h-4 ${isEligibleForUpgrade ? 'text-black' : 'text-[#F2CA50]'}`} />
+              <span className="truncate">Monter de grade</span>
+              {isEligibleForUpgrade && (
+                <span className="text-[8px] bg-black text-[#F2CA50] px-1 py-0.2 rounded font-black uppercase shrink-0">
+                  Prêt
+                </span>
+              )}
+            </button>
+          )}
 
           <button
             onClick={() => setShowWithdrawModal(true)}

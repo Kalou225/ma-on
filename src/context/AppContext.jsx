@@ -15,6 +15,8 @@ export const AppProvider = ({ children }) => {
   const [showDepositModal, setShowDepositModal] = useState(false);
   const [showWithdrawModal, setShowWithdrawModal] = useState(false);
   const [showRankSuccessModal, setShowRankSuccessModal] = useState(false);
+  const [showUpgradeRankModal, setShowUpgradeRankModal] = useState(false);
+  const [selectedTargetRank, setSelectedTargetRank] = useState(null);
   const [showShareModal, setShowShareModal] = useState(false);
   const [selectedRankCelebration, setSelectedRankCelebration] = useState(null);
 
@@ -234,6 +236,35 @@ export const AppProvider = ({ children }) => {
     } catch (err) {
       showToastNotification(err.message || 'Erreur de retrait', 'error');
       return false;
+    }
+  };
+
+  // 2.bis Upgrade Rank (User Action via Solde Commission)
+  const upgradeRank = async (targetRank) => {
+    try {
+      const res = await api.network.upgradeRank(targetRank);
+      showToastNotification(res.message || `Félicitations ! Vous êtes passé au grade ${res.newRank} ! 🎉`, 'success');
+      setShowUpgradeRankModal(false);
+
+      setSelectedRankCelebration({
+        title: `Grade ${res.newRank} Débloqué ! 🏆`,
+        name: res.newRank,
+        bonus: 0,
+        rate: `${(res.newRate * 100).toFixed(0)}%`,
+        levels: 3,
+        benefits: `Taux de commission réseau de ${(res.newRate * 100).toFixed(0)}% activé sur l'ensemble de votre arbre MLM.`,
+      });
+      setShowRankSuccessModal(true);
+
+      try {
+        confetti({ particleCount: 150, spread: 80, origin: { y: 0.5 } });
+      } catch (e) {}
+
+      await refreshUserData();
+      return { success: true, ...res };
+    } catch (err) {
+      showToastNotification(err.message || 'Erreur lors de la montée de grade', 'error');
+      return { success: false, error: err.message };
     }
   };
 
@@ -536,6 +567,11 @@ export const AppProvider = ({ children }) => {
         setShowWithdrawModal,
         showRankSuccessModal,
         setShowRankSuccessModal,
+        showUpgradeRankModal,
+        setShowUpgradeRankModal,
+        selectedTargetRank,
+        setSelectedTargetRank,
+        upgradeRank,
         showShareModal,
         setShowShareModal,
         selectedRankCelebration,

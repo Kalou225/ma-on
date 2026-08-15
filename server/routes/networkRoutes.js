@@ -1,18 +1,13 @@
 import express from 'express';
-import db from '../db/database.js';
+import db, { checkpointDb, saveUserToStore } from '../db/database.js';
 import { authenticateToken } from '../middleware/authMiddleware.js';
+import { getNextRank, getRankDetails } from '../services/rankService.js';
+import { logSecurityEvent } from '../services/auditLogger.js';
+import { createNotification } from './notificationRoutes.js';
 
 const router = express.Router();
 
-// Helper to determine rank dynamically
-const calculateRank = (directCount, totalEarnings) => {
-  if (directCount >= 30 || totalEarnings >= 2000000) return 'Grand Maître';
-  if (directCount >= 15 || totalEarnings >= 500000) return 'Maître';
-  if (directCount >= 5 || totalEarnings >= 100000) return 'Compagnon';
-  return 'Apprenti';
-};
-
-// GET REFERRAL NETWORK TREE (Up to 3 levels)
+// 1. GET REFERRAL NETWORK TREE (Up to 3 levels)
 router.get('/tree', authenticateToken, (req, res) => {
   const userId = req.user.id;
 
@@ -83,6 +78,144 @@ router.get('/tree', authenticateToken, (req, res) => {
     },
     tree,
   });
+});
+
+// 2. UPGRADE RANK VIA COMMISSION BALANCE (USER ACTION)
+router.post('/upgrade-rank', authenticateToken, (req, res) => {
+  const userId = req.user.id;
+
+  const user = db.prepare(`
+    SELECT id, name, email, phone, status, rank, commission_balance, balance, activation_balance 
+    FROM users 
+    WHERE id = ?
+  `).get(userId);
+
+  if (!user) {
+    return res.status(404).json({ error: 'Utilisateur introuvable.' });
+  }
+
+  if (user.status !== 'ACTIF' || (user.activation_balance || 0) <= 0) {
+    return res.status(400).json({
+      error: 'Vous devez d\'abord activer votre compte avec un 1er dépôt pour pouvoir monter de grade.',
+    });
+  }
+
+  const currentRank = user.rank || 'Apprenti';
+  const currentIndex = RANKS_CONFIG.findIndex(
+    (r) => r.name.toLowerCase() === currentRank.trim().toLowerCase()
+  );
+
+  let targetRank = null;
+  if (req.body && req.body.targetRank) {
+    targetRank = getRankDetails(req.body.targetRank);
+    const targetIndex = RANKS_CONFIG.findIndex(
+      (r) => r.name.toLowerCase() === targetRank.name.toLowerCase()
+    );
+    if (targetIndex <= currentIndex) {
+      return res.status(400).json({
+        error: `Le grade sélectionné (${targetRank.name}) doit être supérieur à votre grade actuel (${currentRank}).`,
+      });
+    }
+  } else {
+    targetRank = getNextRank(currentRank);
+  }
+
+  if (!targetRank) {
+    return res.status(400).json({
+      error: 'Vous avez déjà atteint le grade suprême (Grand Maître) !',
+    });
+  }
+
+  const userCommission = user.commission_balance || 0;
+  if (userCommission < targetRank.cost) {
+    return res.status(400).json({
+      error: `Solde Commission insuffisant (${userCommission.toLocaleString()} FCFA). Le palier requis pour débloquer le grade ${targetRank.name} est de ${targetRank.cost.toLocaleString()} FCFA.`,
+      requiredAmount: targetRank.cost,
+      currentCommission: userCommission,
+      missingAmount: targetRank.cost - userCommission,
+    });
+  }
+
+  try {
+    const executeUpgrade = db.transaction(() => {
+      const newCommissionBal = userCommission - targetRank.cost;
+      const newTotalBal = Math.max(0, (user.balance || 0) - targetRank.cost);
+
+      // 1. Update user balances and rank
+      db.prepare(`
+        UPDATE users
+        SET commission_balance = ?,
+            balance = ?,
+            rank = ?
+        WHERE id = ?
+      `).run(newCommissionBal, newTotalBal, targetRank.name, userId);
+
+      // 2. Record transaction
+      const txnId = `UPG-${Math.floor(1000 + Math.random() * 9000)}`;
+      db.prepare(`
+        INSERT INTO transactions (id, user_id, type, label, amount, date_time, status, note)
+        VALUES (?, ?, 'UPGRADE_GRADE', ?, ?, CURRENT_TIMESTAMP, 'VALIDÉ', ?)
+      `).run(
+        txnId,
+        userId,
+        `Montée au grade ${targetRank.name}`,
+        targetRank.cost,
+        `Prélèvement Solde Commission (${targetRank.cost.toLocaleString()} FCFA) pour accès au grade ${targetRank.name} (${(targetRank.rate * 100).toFixed(0)}% commission réseau).`
+      );
+
+      // 3. Create Notification
+      createNotification(
+        userId,
+        'Nouveau Grade Débloqué ! 🏆',
+        `Félicitations ! Vous êtes passé au grade ${targetRank.name}. Votre taux de commission réseau est désormais de ${(targetRank.rate * 100).toFixed(0)}%.`,
+        'SUCCESS'
+      );
+
+      // 4. Update Mirror Store
+      saveUserToStore({
+        id: userId,
+        rank: targetRank.name,
+        commission_balance: newCommissionBal,
+        balance: newTotalBal,
+      });
+      checkpointDb();
+
+      // 5. Security audit
+      logSecurityEvent('RANK_UPGRADED_SUCCESS', {
+        userId,
+        ip: req.ip,
+        details: {
+          previousRank: currentRank,
+          newRank: targetRank.name,
+          cost: targetRank.cost,
+          newCommissionBalance: newCommissionBal,
+        },
+        severity: 'INFO',
+      });
+
+      return {
+        newCommissionBal,
+        newTotalBal,
+        newRank: targetRank.name,
+        newRate: targetRank.rate,
+        label: targetRank.label,
+        deductedCost: targetRank.cost,
+      };
+    });
+
+    const result = executeUpgrade();
+
+    res.json({
+      success: true,
+      message: `Félicitations ! Vous avez atteint avec succès le grade ${result.newRank} ! 🎉`,
+      newRank: result.newRank,
+      newRate: result.newRate,
+      deductedCost: result.deductedCost,
+      newCommissionBalance: result.newCommissionBal,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message || 'Erreur lors de la montée de grade.' });
+  }
 });
 
 export default router;
