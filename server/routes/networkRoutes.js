@@ -3,7 +3,7 @@ import db, { checkpointDb, saveUserToStore } from '../db/database.js';
 import { authenticateToken } from '../middleware/authMiddleware.js';
 import { getNextRank, getRankDetails } from '../services/rankService.js';
 import { logSecurityEvent } from '../services/auditLogger.js';
-import { createNotification } from './notificationRoutes.js';
+import { createNotification } from '../services/notificationService.js';
 
 const router = express.Router();
 
