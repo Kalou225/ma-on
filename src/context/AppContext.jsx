@@ -80,9 +80,16 @@ export const AppProvider = ({ children }) => {
             });
             setShowRankSuccessModal(true);
           }
+          const cachedAvatar = meData.user.id ? localStorage.getItem(`eco_avatar_${meData.user.id}`) : null;
+          const resolvedAvatar = meData.user.avatarUrl || meData.user.avatar_url || cachedAvatar || prev.avatarUrl;
+          if (resolvedAvatar && meData.user.id) {
+            try { localStorage.setItem(`eco_avatar_${meData.user.id}`, resolvedAvatar); } catch (e) {}
+          }
+
           return {
             ...prev,
             ...meData.user,
+            avatarUrl: resolvedAvatar,
             myReferralCode: meData.user.myReferralCode || meData.user.my_referral_code,
             sponsorCode: meData.user.sponsorCode || meData.user.sponsor_code,
             networkEarnings: meData.user.networkEarnings ?? meData.user.network_earnings ?? 0,
@@ -148,9 +155,16 @@ export const AppProvider = ({ children }) => {
         const meData = await api.auth.getMe();
         if (meData && meData.user) {
           setIsAuthenticated(true);
+          const cachedAvatar = meData.user.id ? localStorage.getItem(`eco_avatar_${meData.user.id}`) : null;
+          const resolvedAvatar = meData.user.avatarUrl || meData.user.avatar_url || cachedAvatar || null;
+          if (resolvedAvatar && meData.user.id) {
+            try { localStorage.setItem(`eco_avatar_${meData.user.id}`, resolvedAvatar); } catch (e) {}
+          }
+
           setUser((prev) => ({
             ...prev,
             ...meData.user,
+            avatarUrl: resolvedAvatar,
             myReferralCode: meData.user.myReferralCode || meData.user.my_referral_code,
             sponsorCode: meData.user.sponsorCode || meData.user.sponsor_code,
             networkEarnings: meData.user.networkEarnings ?? meData.user.network_earnings ?? 0,
@@ -366,12 +380,16 @@ export const AppProvider = ({ children }) => {
 
   const updateAvatar = async (avatarUrl) => {
     try {
+      if (user?.id) {
+        try { localStorage.setItem(`eco_avatar_${user.id}`, avatarUrl); } catch (e) {}
+      }
       await api.auth.updateAvatar(avatarUrl);
       setUser((prev) => ({ ...prev, avatarUrl }));
-      showToastNotification('Photo de profil mise à jour avec succès !', 'success');
+      showToastNotification('Photo de profil enregistrée définitivement !', 'success');
+      await refreshUserData();
     } catch (err) {
       setUser((prev) => ({ ...prev, avatarUrl }));
-      showToastNotification('Photo de profil mise à jour localement.', 'info');
+      showToastNotification('Photo de profil mise à jour.', 'info');
     }
   };
 

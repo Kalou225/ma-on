@@ -607,8 +607,18 @@ router.post('/update-avatar', authenticateToken, (req, res) => {
   if (!avatarUrl) {
     return res.status(400).json({ error: 'Image requise.' });
   }
+
   db.prepare('UPDATE users SET avatar_url = ? WHERE id = ?').run(avatarUrl, req.user.id);
-  res.json({ message: 'Photo de profil mise à jour avec succès.', avatarUrl });
+
+  saveUserToStore({
+    id: req.user.id,
+    avatar_url: avatarUrl,
+  });
+  checkpointDb();
+
+  logSecurityEvent('AVATAR_UPDATED', { userId: req.user.id, ip: req.ip });
+
+  res.json({ message: 'Photo de profil enregistrée définitivement.', avatarUrl });
 });
 
 

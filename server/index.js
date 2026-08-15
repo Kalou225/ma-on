@@ -28,9 +28,9 @@ app.set('trust proxy', 1);
 // 1. Configure Security Headers (Helmet + CORS)
 configureSecurityHeaders(app);
 
-// 2. Body Parser & Cookie Parser
-app.use(express.json({ limit: '10kb' })); // Anti-DoS body size limit
-app.use(express.urlencoded({ extended: true, limit: '10kb' }));
+// 2. Body Parser & Cookie Parser (Allow profile photos & transactions receipts)
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(cookieParser());
 
 // 3. Global Rate Limiter

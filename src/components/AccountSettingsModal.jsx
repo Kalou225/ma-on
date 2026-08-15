@@ -28,6 +28,8 @@ import {
   Zap,
 } from 'lucide-react';
 
+import { compressProfileImage } from '../utils/imageHelper';
+
 export const AccountSettingsModal = () => {
   const {
     user,
@@ -88,25 +90,19 @@ export const AccountSettingsModal = () => {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleFileChange = (e) => {
+  const handleFileChange = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 5 * 1024 * 1024) {
-      showToastNotification('La taille de la photo ne doit pas dépasser 5 Mo.', 'error');
-      return;
-    }
-
-    setIsUploading(true);
-    const reader = new FileReader();
-    reader.onload = async (event) => {
-      const base64Image = event.target?.result;
-      if (base64Image) {
-        await updateAvatar(base64Image);
-      }
+    try {
+      setIsUploading(true);
+      const compressedBase64 = await compressProfileImage(file, 400, 400, 0.85);
+      await updateAvatar(compressedBase64);
+    } catch (err) {
+      showToastNotification(err.message || 'Erreur lors du traitement de la photo.', 'error');
+    } finally {
       setIsUploading(false);
-    };
-    reader.readAsDataURL(file);
+    }
   };
 
   const handleSaveProfile = async (e) => {

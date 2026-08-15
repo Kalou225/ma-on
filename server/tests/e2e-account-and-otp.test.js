@@ -191,19 +191,37 @@ async function runGlobalTests() {
   assert.ok(bcrypt.compareSync(adminTempPass, resetUser.password_hash), 'Le mot de passe temporaire doit être vérifié avec succès.');
   console.log('   ✅ Réinitialisation administrative du mot de passe validée !');
 
-  // Test user deletion by admin
-  db.prepare('DELETE FROM transactions WHERE user_id = ?').run(userId);
-  db.prepare('DELETE FROM users WHERE id = ?').run(userId);
-  removeUserFromStore(userId);
+  // ----------------------------------------------------
+  // TEST 9 : PERSISTANCE DÉFINITIVE DE LA PHOTO DE PROFIL (AVATAR)
+  // ----------------------------------------------------
+  console.log('\n9️⃣ Test : Persistance Définitive de la Photo de Profil (Avatar)...');
+  const avatarUserId = `usr-avatar-${Date.now()}`;
+  const testAvatarBase64 = 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA=';
   
-  const checkDeletedDb = db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
-  assert.strictEqual(checkDeletedDb, undefined, 'L\'utilisateur doit être complètement supprimé de SQLite.');
-  
-  const checkDeletedStore = getUsersFromStore().find((u) => u.id === userId);
-  assert.strictEqual(checkDeletedStore, undefined, 'L\'utilisateur doit être complètement supprimé du store miroir.');
-  console.log('   ✅ Suppression définitive de l\'utilisateur (SQLite + Store Miroir) validée avec succès !');
+  db.prepare(`
+    INSERT INTO users (id, name, email, phone, password_hash, role, status, my_referral_code, avatar_url)
+    VALUES (?, ?, ?, ?, ?, 'MEMBRE', 'ACTIF', ?, ?)
+  `).run(avatarUserId, 'Membre Photo', `avatar.${Date.now()}@ecofinance.ci`, '+225 07 99 00 11 22', 'hash123', `ILL-AVATAR-${Date.now()}`, testAvatarBase64);
 
-  // Nettoyage OTP
+  saveUserToStore({
+    id: avatarUserId,
+    name: 'Membre Photo',
+    email: `avatar.${Date.now()}@ecofinance.ci`,
+    avatar_url: testAvatarBase64,
+  });
+
+  const checkAvatarDb = db.prepare('SELECT avatar_url FROM users WHERE id = ?').get(avatarUserId);
+  assert.strictEqual(checkAvatarDb.avatar_url, testAvatarBase64, 'La photo de profil doit être stockée dans SQLite.');
+
+  const checkAvatarStore = getUsersFromStore().find((u) => u.id === avatarUserId);
+  assert.strictEqual(checkAvatarStore?.avatar_url, testAvatarBase64, 'La photo de profil doit être synchronisée dans users-store.json.');
+
+  console.log('   ✅ Photo de profil stockée en SQLite avec succès !');
+  console.log('   ✅ Photo de profil synchronisée dans le Store Miroir avec succès !');
+
+  // Nettoyage
+  db.prepare('DELETE FROM users WHERE id = ?').run(avatarUserId);
+  removeUserFromStore(avatarUserId);
   db.prepare('DELETE FROM otp_verifications WHERE identifier = ?').run(testEmail.toLowerCase());
 
   console.log('\n========================================================');

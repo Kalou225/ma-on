@@ -88,6 +88,33 @@
     "password_hash": "$2b$10$3vq8iVWBCvUPBUomO.N5UuOujftvZsJUC0.Vgh/mc9HBxeX9XakrS",
     "role": "MEMBRE",
     "status": "ACTIF",
+    "rank": "Apprenti",
+    "balance": 0,
+    "network_earnings": 0,
+    "my_referral_code": "ILL-7770",
+    "sponsor_code": null,
+    "mfa_secret": null,
+    "mfa_enabled": 0,
+    "failed_attempts": 0,
+    "lockout_until": null,
+    "created_at": "2026-08-15 11:17:13",
+    "avatar_url": null,
+    "activation_balance": 0,
+    "commission_balance": 0,
+    "last_withdrawal_date": null,
+    "default_payment_provider": "Orange Money",
+    "default_payment_number": "+225 01 22 33 44 55",
+    "default_payment_holder": "Membre Miroir",
+    "preferred_otp_channel": "EMAIL"
+  },
+  {
+    "id": "usr-mirror-1786792635291",
+    "name": "Membre Miroir",
+    "email": "mirror.test.1786792635291@ecofinance.ci",
+    "phone": "+225 01 22 33 44 55",
+    "password_hash": "$2b$10$XDO/iwe1xN39dumMlFCl0eATxPe6GmUroSXxmVItNxjKRuu3FZ3yu",
+    "role": "MEMBRE",
+    "status": "ACTIF",
     "rank": "Apprenti"
   }
 ]
