@@ -35,3 +35,21 @@ export const requireRole = (role) => (req, res, next) => {
   }
   next();
 };
+
+// Exclusively for Super Administrator (Master Admin)
+export const requireMasterAdmin = (req, res, next) => {
+  if (!req.user || req.user.role !== 'ADMIN') {
+    logSecurityEvent('UNAUTHORIZED_MASTER_ADMIN_ACCESS', { userId: req.user?.id, ip: req.ip, severity: 'HIGH' });
+    return res.status(403).json({ error: 'Accès refusé. Action strictement réservée à l\'Administrateur Général.' });
+  }
+  next();
+};
+
+// For both Super Administrator and Sub-Administrators (Operational management)
+export const requireAdminOrSubAdmin = (req, res, next) => {
+  if (!req.user || !['ADMIN', 'SUB_ADMIN'].includes(req.user.role)) {
+    logSecurityEvent('UNAUTHORIZED_ADMIN_ACCESS', { userId: req.user?.id, ip: req.ip, severity: 'HIGH' });
+    return res.status(403).json({ error: 'Accès refusé. Privilèges d\'administration ou sous-administration requis.' });
+  }
+  next();
+};

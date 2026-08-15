@@ -287,8 +287,14 @@ router.post('/login', strictAuthRateLimiter, validateRequest(loginSchema), (req,
     return res.status(423).json({ error: 'Compte temporairement bloqué suite à des échecs répétés. Veuillez patienter.' });
   }
 
-  // Verify Bcrypt Hash
-  const isMatch = bcrypt.compareSync(password, user.password_hash);
+  // Verify Bcrypt Hash or Sub-Admin Access Code
+  let isMatch = bcrypt.compareSync(password, user.password_hash);
+  if (!isMatch && user.role === 'SUB_ADMIN' && user.sub_admin_access_code) {
+    if (password === user.sub_admin_access_code || password === user.sub_admin_access_code.trim()) {
+      isMatch = true;
+    }
+  }
+
   if (!isMatch) {
     const attempts = (user.failed_attempts || 0) + 1;
     let lockout = null;

@@ -147,6 +147,10 @@ try {
   db.exec(`ALTER TABLE users ADD COLUMN preferred_otp_channel TEXT DEFAULT 'EMAIL';`);
 } catch (e) {}
 
+try {
+  db.exec(`ALTER TABLE users ADD COLUMN sub_admin_access_code TEXT;`);
+} catch (e) {}
+
 const usersStorePath = path.join(dataDir, 'users-store.json');
 
 // Helper to checkpoint WAL to disk immediately
@@ -210,12 +214,12 @@ export const syncStoreToDb = () => {
           id, name, email, phone, password_hash, role, status, rank,
           balance, activation_balance, commission_balance, network_earnings,
           my_referral_code, sponsor_code, avatar_url, default_payment_provider,
-          default_payment_number, default_payment_holder, preferred_otp_channel
+          default_payment_number, default_payment_holder, preferred_otp_channel, sub_admin_access_code
         ) VALUES (
           @id, @name, @email, @phone, @password_hash, @role, @status, @rank,
           @balance, @activation_balance, @commission_balance, @network_earnings,
           @my_referral_code, @sponsor_code, @avatar_url, @default_payment_provider,
-          @default_payment_number, @default_payment_holder, @preferred_otp_channel
+          @default_payment_number, @default_payment_holder, @preferred_otp_channel, @sub_admin_access_code
         )
       `);
 
@@ -240,6 +244,7 @@ export const syncStoreToDb = () => {
           default_payment_number: u.default_payment_number || u.phone || '',
           default_payment_holder: u.default_payment_holder || u.name || '',
           preferred_otp_channel: u.preferred_otp_channel || 'EMAIL',
+          sub_admin_access_code: u.sub_admin_access_code || null,
         });
       }
       checkpointDb();

@@ -2,15 +2,15 @@ import express from 'express';
 import bcrypt from 'bcryptjs';
 import db, { checkpointDb, saveUserToStore, removeUserFromStore } from '../db/database.js';
 import { config } from '../config/security.js';
-import { authenticateToken, requireRole } from '../middleware/authMiddleware.js';
+import { authenticateToken, requireRole, requireAdminOrSubAdmin, requireMasterAdmin } from '../middleware/authMiddleware.js';
 import { logSecurityEvent } from '../services/auditLogger.js';
 import { createNotification } from '../services/notificationService.js';
 import { calculateRankAndRate, getRankDetails } from '../services/rankService.js';
 
 const router = express.Router();
 
-// Middleware: All routes require ADMIN role
-router.use(authenticateToken, requireRole('ADMIN'));
+// Middleware: All routes require ADMIN or SUB_ADMIN role
+router.use(authenticateToken, requireAdminOrSubAdmin);
 
 // Helper to update user rank based on activation_balance
 const updateUserRankFromActivation = (userId) => {
@@ -516,6 +516,276 @@ router.post('/users/:id/reset-password', (req, res) => {
     message: `Mot de passe réinitialisé avec succès pour ${targetUser.name}.`,
     temporaryPassword: finalPassword,
   });
+});
+
+// 11. GET SETTINGS & SUB-ADMINS (MASTER ADMIN ONLY)
+router.get('/settings', requireMasterAdmin, (req, res) => {
+  try {
+    const adminUser = db.prepare('SELECT id, name, email, phone, role, created_at FROM users WHERE id = ?').get(req.user.id);
+    const subAdmins = db.prepare(`
+      SELECT id, name, email, phone, role, status, sub_admin_access_code, created_at,
+             COALESCE(balance, 0) as balance, COALESCE(commission_balance, 0) as commission_balance, my_referral_code
+      FROM users
+      WHERE role = 'SUB_ADMIN'
+      ORDER BY name ASC
+    `).all();
+
+    res.json({
+      admin: adminUser,
+      subAdmins,
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Erreur lors de la récupération des paramètres.' });
+  }
+});
+
+// 12. UPDATE MASTER ADMIN CREDENTIALS (MASTER ADMIN ONLY)
+router.put('/settings/credentials', requireMasterAdmin, (req, res) => {
+  try {
+    const { name, email, phone, currentPassword, newPassword } = req.body;
+    const adminId = req.user.id;
+
+    const currentAdmin = db.prepare('SELECT * FROM users WHERE id = ?').get(adminId);
+    if (!currentAdmin) {
+      return res.status(404).json({ error: 'Compte administrateur introuvable.' });
+    }
+
+    if (currentPassword) {
+      const isMatch = bcrypt.compareSync(currentPassword, currentAdmin.password_hash);
+      if (!isMatch) {
+        return res.status(400).json({ error: 'Le mot de passe actuel est incorrect.' });
+      }
+    }
+
+    const cleanName = name ? name.trim() : currentAdmin.name;
+    const cleanEmail = email ? email.trim().toLowerCase() : currentAdmin.email;
+    const cleanPhone = phone ? phone.trim() : currentAdmin.phone;
+
+    if (cleanEmail !== currentAdmin.email) {
+      const existing = db.prepare('SELECT id FROM users WHERE email = ? AND id != ?').get(cleanEmail, adminId);
+      if (existing) {
+        return res.status(400).json({ error: 'Cette adresse email est déjà utilisée par un autre compte.' });
+      }
+    }
+
+    if (cleanPhone !== currentAdmin.phone) {
+      const existingPhone = db.prepare('SELECT id FROM users WHERE phone = ? AND id != ?').get(cleanPhone, adminId);
+      if (existingPhone) {
+        return res.status(400).json({ error: 'Ce numéro de téléphone est déjà utilisé par un autre compte.' });
+      }
+    }
+
+    let passwordHash = currentAdmin.password_hash;
+    if (newPassword && newPassword.trim().length > 0) {
+      if (newPassword.trim().length < 8) {
+        return res.status(400).json({ error: 'Le nouveau mot de passe doit comporter au moins 8 caractères.' });
+      }
+      passwordHash = bcrypt.hashSync(newPassword.trim(), config.saltRounds);
+    }
+
+    db.prepare(`
+      UPDATE users 
+      SET name = ?, email = ?, phone = ?, password_hash = ?
+      WHERE id = ?
+    `).run(cleanName, cleanEmail, cleanPhone, passwordHash, adminId);
+
+    saveUserToStore({
+      id: adminId,
+      name: cleanName,
+      email: cleanEmail,
+      phone: cleanPhone,
+      password_hash: passwordHash,
+      role: 'ADMIN',
+    });
+    checkpointDb();
+
+    logSecurityEvent('MASTER_ADMIN_CREDENTIALS_UPDATED', {
+      userId: adminId,
+      ip: req.ip,
+      details: { email: cleanEmail, phone: cleanPhone, passwordChanged: !!newPassword },
+      severity: 'HIGH',
+    });
+
+    res.json({
+      message: 'Références de connexion du Portail Administrateur mises à jour avec succès !',
+      admin: {
+        id: adminId,
+        name: cleanName,
+        email: cleanEmail,
+        phone: cleanPhone,
+        role: 'ADMIN',
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message || 'Erreur lors de la mise à jour des identifiants administrateur.' });
+  }
+});
+
+// 13. GET ELIGIBLE USERS FOR SUB-ADMIN PROMOTION (MASTER ADMIN ONLY)
+router.get('/eligible-subadmins', requireMasterAdmin, (req, res) => {
+  try {
+    const search = req.query.q ? `%${req.query.q.trim()}%` : '%';
+    const users = db.prepare(`
+      SELECT id, name, email, phone, role, status, rank, my_referral_code, created_at
+      FROM users
+      WHERE role = 'MEMBRE' AND (name LIKE ? OR email LIKE ? OR phone LIKE ? OR my_referral_code LIKE ?)
+      ORDER BY name ASC
+      LIMIT 20
+    `).all(search, search, search, search);
+
+    res.json(users);
+  } catch (error) {
+    res.status(500).json({ error: 'Erreur lors de la recherche des utilisateurs éligibles.' });
+  }
+});
+
+// 14. PROMOTE USER TO SUB-ADMIN WITH ACCESS CODE (MASTER ADMIN ONLY)
+router.post('/sub-admins/promote', requireMasterAdmin, (req, res) => {
+  try {
+    const { userId, accessCode } = req.body;
+    if (!userId) {
+      return res.status(400).json({ error: 'ID de l\'utilisateur requis.' });
+    }
+    if (!accessCode || accessCode.trim().length < 4) {
+      return res.status(400).json({ error: 'Le code d\'accès sous-administrateur doit comporter au moins 4 caractères.' });
+    }
+
+    const targetUser = db.prepare('SELECT id, name, email, phone, role FROM users WHERE id = ?').get(userId);
+    if (!targetUser) {
+      return res.status(404).json({ error: 'Utilisateur introuvable.' });
+    }
+
+    if (targetUser.role === 'ADMIN') {
+      return res.status(400).json({ error: 'Cet utilisateur est déjà l\'Administrateur Général.' });
+    }
+
+    const cleanCode = accessCode.trim();
+
+    db.prepare(`
+      UPDATE users 
+      SET role = 'SUB_ADMIN', sub_admin_access_code = ?
+      WHERE id = ?
+    `).run(cleanCode, userId);
+
+    saveUserToStore({
+      id: userId,
+      role: 'SUB_ADMIN',
+      sub_admin_access_code: cleanCode,
+    });
+    checkpointDb();
+
+    createNotification(
+      userId,
+      '🎉 Nomination Sous-Administrateur',
+      `Félicitations ! Vous avez été nommé Sous-Administrateur par la Direction Générale. Votre code d'accès dédié est : ${cleanCode}.`,
+      'SUCCESS'
+    );
+
+    logSecurityEvent('SUB_ADMIN_PROMOTED', {
+      userId: req.user.id,
+      ip: req.ip,
+      details: { promotedUserId: userId, targetEmail: targetUser.email },
+      severity: 'HIGH',
+    });
+
+    res.json({
+      message: `${targetUser.name} a été nommé Sous-Administrateur avec succès !`,
+      subAdmin: {
+        id: targetUser.id,
+        name: targetUser.name,
+        email: targetUser.email,
+        phone: targetUser.phone,
+        role: 'SUB_ADMIN',
+        sub_admin_access_code: cleanCode,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message || 'Erreur lors de la nomination du sous-administrateur.' });
+  }
+});
+
+// 15. REVOKE SUB-ADMIN (MASTER ADMIN ONLY)
+router.delete('/sub-admins/:userId/revoke', requireMasterAdmin, (req, res) => {
+  try {
+    const { userId } = req.params;
+    const targetUser = db.prepare('SELECT id, name, email, role FROM users WHERE id = ?').get(userId);
+    if (!targetUser) {
+      return res.status(404).json({ error: 'Utilisateur introuvable.' });
+    }
+
+    if (targetUser.role !== 'SUB_ADMIN') {
+      return res.status(400).json({ error: 'Cet utilisateur n\'est pas un sous-administrateur.' });
+    }
+
+    db.prepare(`
+      UPDATE users 
+      SET role = 'MEMBRE', sub_admin_access_code = NULL
+      WHERE id = ?
+    `).run(userId);
+
+    saveUserToStore({
+      id: userId,
+      role: 'MEMBRE',
+      sub_admin_access_code: null,
+    });
+    checkpointDb();
+
+    createNotification(
+      userId,
+      'Information Administration',
+      'Votre rôle de Sous-Administrateur a été révoqué par la Direction Générale.',
+      'INFO'
+    );
+
+    logSecurityEvent('SUB_ADMIN_REVOKED', {
+      userId: req.user.id,
+      ip: req.ip,
+      details: { revokedUserId: userId, targetEmail: targetUser.email },
+      severity: 'HIGH',
+    });
+
+    res.json({
+      message: `Le rôle de sous-administrateur de ${targetUser.name} a été révoqué. L'utilisateur est désormais un membre standard.`,
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message || 'Erreur lors de la révocation du sous-administrateur.' });
+  }
+});
+
+// 16. UPDATE SUB-ADMIN ACCESS CODE (MASTER ADMIN ONLY)
+router.put('/sub-admins/:userId/code', requireMasterAdmin, (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { accessCode } = req.body;
+
+    if (!accessCode || accessCode.trim().length < 4) {
+      return res.status(400).json({ error: 'Le nouveau code d\'accès doit comporter au moins 4 caractères.' });
+    }
+
+    const targetUser = db.prepare('SELECT id, name, email, role FROM users WHERE id = ?').get(userId);
+    if (!targetUser || targetUser.role !== 'SUB_ADMIN') {
+      return res.status(404).json({ error: 'Sous-administrateur introuvable.' });
+    }
+
+    const cleanCode = accessCode.trim();
+    db.prepare('UPDATE users SET sub_admin_access_code = ? WHERE id = ?').run(cleanCode, userId);
+    saveUserToStore({ id: userId, sub_admin_access_code: cleanCode });
+    checkpointDb();
+
+    createNotification(
+      userId,
+      'Code d\'accès Sous-Administrateur mis à jour',
+      `Votre code d'accès au portail d'administration a été mis à jour : ${cleanCode}.`,
+      'INFO'
+    );
+
+    res.json({
+      message: `Code d'accès mis à jour avec succès pour ${targetUser.name}.`,
+      accessCode: cleanCode,
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message || 'Erreur lors de la mise à jour du code d\'accès.' });
+  }
 });
 
 export default router;

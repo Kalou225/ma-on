@@ -244,6 +244,41 @@ export const api = {
         body: JSON.stringify({ newPassword }),
       });
     },
+
+    getSettings: async () => {
+      return customFetch('/admin/settings');
+    },
+
+    updateCredentials: async ({ name, email, phone, currentPassword, newPassword }) => {
+      return customFetch('/admin/settings/credentials', {
+        method: 'PUT',
+        body: JSON.stringify({ name, email, phone, currentPassword, newPassword }),
+      });
+    },
+
+    getEligibleSubAdmins: async (query = '') => {
+      return customFetch(`/admin/eligible-subadmins?q=${encodeURIComponent(query)}`);
+    },
+
+    promoteSubAdmin: async (userId, accessCode) => {
+      return customFetch('/admin/sub-admins/promote', {
+        method: 'POST',
+        body: JSON.stringify({ userId, accessCode }),
+      });
+    },
+
+    revokeSubAdmin: async (userId) => {
+      return customFetch(`/admin/sub-admins/${userId}/revoke`, {
+        method: 'DELETE',
+      });
+    },
+
+    updateSubAdminCode: async (userId, accessCode) => {
+      return customFetch(`/admin/sub-admins/${userId}/code`, {
+        method: 'PUT',
+        body: JSON.stringify({ accessCode }),
+      });
+    },
   },
 
   // Chatbot API (Mistral AI)
