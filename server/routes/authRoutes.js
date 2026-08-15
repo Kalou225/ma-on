@@ -140,34 +140,61 @@ router.post('/send-otp', strictAuthRateLimiter, validateRequest(sendOtpSchema), 
   }
 });
 
+// Helper for resilient user lookup by Email, Phone (all formats/country codes) or Referral Code
+const findUserByIdentifier = (identifier) => {
+  if (!identifier) return null;
+  const rawId = identifier.trim();
+  const cleanEmail = rawId.toLowerCase();
+  const digitsOnly = rawId.replace(/\D/g, '');
+  const local10 = digitsOnly.startsWith('225') ? digitsOnly.slice(3) : digitsOnly;
+  const with225 = digitsOnly.startsWith('225') ? digitsOnly : '225' + digitsOnly;
+  const withPlus225 = '+' + with225;
+
+  const queryUser = () => {
+    if (cleanEmail.includes('@')) {
+      return db.prepare('SELECT * FROM users WHERE LOWER(TRIM(email)) = ?').get(cleanEmail);
+    }
+    return db.prepare(`
+      SELECT * FROM users 
+      WHERE LOWER(TRIM(email)) = ? 
+         OR UPPER(TRIM(my_referral_code)) = UPPER(TRIM(?))
+         OR phone = ? 
+         OR phone = ? 
+         OR phone = ? 
+         OR phone = ? 
+         OR REPLACE(REPLACE(REPLACE(phone, ' ', ''), '-', ''), '+', '') = ?
+         OR REPLACE(REPLACE(REPLACE(phone, ' ', ''), '-', ''), '+', '') = ?
+         OR REPLACE(REPLACE(REPLACE(phone, ' ', ''), '-', ''), '+', '') = ?
+         OR REPLACE(REPLACE(REPLACE(phone, ' ', ''), '-', ''), '+', '') = ?
+    `).get(
+      cleanEmail,
+      rawId,
+      rawId,
+      withPlus225,
+      local10,
+      digitsOnly,
+      digitsOnly,
+      local10,
+      with225,
+      withPlus225
+    );
+  };
+
+  let user = queryUser();
+  if (!user) {
+    syncStoreToDb();
+    user = queryUser();
+  }
+  return user;
+};
+
 // 0b. SEND OTP FOR PASSWORD RECOVERY (FORGOT PASSWORD)
 router.post('/forgot-password/send-otp', strictAuthRateLimiter, validateRequest(forgotPasswordSendOtpSchema), async (req, res) => {
   const { identifier, phone, email, channel } = req.validated.body;
   const rawId = (identifier || phone || email || '').trim();
-  const cleanEmail = rawId.toLowerCase();
   const hostOrigin = req.headers.host || 'ma-on.onrender.com';
 
-  // Find user by email or phone number
-  const digitsOnly = rawId.replace(/\D/g, '');
-  let user = null;
-  if (cleanEmail.includes('@')) {
-    user = db.prepare('SELECT id, name, email, phone FROM users WHERE LOWER(TRIM(email)) = ?').get(cleanEmail);
-  } else {
-    user = db.prepare(`
-      SELECT id, name, email, phone FROM users 
-      WHERE LOWER(TRIM(email)) = ? 
-         OR phone = ? 
-         OR phone = ? 
-         OR REPLACE(REPLACE(REPLACE(phone, ' ', ''), '-', ''), '+', '') = ?
-         OR REPLACE(REPLACE(phone, ' ', ''), '-', '') = ?
-    `).get(
-      cleanEmail,
-      rawId,
-      rawId.startsWith('+') ? rawId : `+${rawId}`,
-      digitsOnly,
-      digitsOnly ? `+${digitsOnly}` : rawId
-    );
-  }
+  const user = findUserByIdentifier(rawId);
 
   if (!user) {
     return res.status(404).json({ error: 'Aucun compte associé à cet email ou numéro de téléphone n\'a été trouvé.' });
@@ -202,28 +229,8 @@ router.post('/forgot-password/send-otp', strictAuthRateLimiter, validateRequest(
 router.post('/forgot-password/reset', strictAuthRateLimiter, validateRequest(forgotPasswordResetSchema), (req, res) => {
   const { identifier, phone, email, otpCode, newPassword } = req.validated.body;
   const rawId = (identifier || phone || email || '').trim();
-  const cleanEmail = rawId.toLowerCase();
-  const digitsOnly = rawId.replace(/\D/g, '');
 
-  let user = null;
-  if (cleanEmail.includes('@')) {
-    user = db.prepare('SELECT id, phone, email FROM users WHERE LOWER(TRIM(email)) = ?').get(cleanEmail);
-  } else {
-    user = db.prepare(`
-      SELECT id, phone, email FROM users 
-      WHERE LOWER(TRIM(email)) = ? 
-         OR phone = ? 
-         OR phone = ? 
-         OR REPLACE(REPLACE(REPLACE(phone, ' ', ''), '-', ''), '+', '') = ?
-         OR REPLACE(REPLACE(phone, ' ', ''), '-', '') = ?
-    `).get(
-      cleanEmail,
-      rawId,
-      rawId.startsWith('+') ? rawId : `+${rawId}`,
-      digitsOnly,
-      digitsOnly ? `+${digitsOnly}` : rawId
-    );
-  }
+  const user = findUserByIdentifier(rawId);
 
   if (!user) {
     return res.status(404).json({ error: 'Compte introuvable.' });
@@ -262,41 +269,12 @@ router.post('/forgot-password/reset', strictAuthRateLimiter, validateRequest(for
   });
 });
 
-// 1. LOGIN (Supports Email OR Phone)
+// 1. LOGIN (Supports Email OR Phone OR Referral Code)
 router.post('/login', strictAuthRateLimiter, validateRequest(loginSchema), (req, res) => {
   const { email: identifier, password, mfaToken } = req.validated.body;
-  const cleanIdentifier = identifier.trim().toLowerCase();
   const rawIdentifier = identifier.trim();
-  const digitsOnly = rawIdentifier.replace(/\D/g, '');
 
-  const findUserQuery = () => {
-    if (cleanIdentifier.includes('@')) {
-      return db.prepare('SELECT * FROM users WHERE LOWER(TRIM(email)) = ?').get(cleanIdentifier);
-    }
-    return db.prepare(`
-      SELECT * FROM users 
-      WHERE LOWER(TRIM(email)) = ? 
-         OR phone = ? 
-         OR phone = ? 
-         OR REPLACE(REPLACE(REPLACE(phone, ' ', ''), '-', ''), '+', '') = ?
-         OR REPLACE(REPLACE(phone, ' ', ''), '-', '') = ?
-    `).get(
-      cleanIdentifier,
-      rawIdentifier,
-      rawIdentifier.startsWith('+') ? rawIdentifier : `+${rawIdentifier}`,
-      digitsOnly,
-      digitsOnly ? `+${digitsOnly}` : rawIdentifier
-    );
-  };
-
-  // Robust search by email or phone
-  let user = findUserQuery();
-
-  // If user was not found in SQLite, attempt auto-restoration from mirror store
-  if (!user) {
-    syncStoreToDb();
-    user = findUserQuery();
-  }
+  const user = findUserByIdentifier(rawIdentifier);
 
   if (!user) {
     logSecurityEvent('LOGIN_FAILED_UNKNOWN_USER', { ip: req.ip, details: { identifier: rawIdentifier }, severity: 'WARNING' });

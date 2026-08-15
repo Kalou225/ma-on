@@ -1,10 +1,10 @@
 import rateLimit from 'express-rate-limit';
 import { logSecurityEvent } from '../services/auditLogger.js';
 
-// General API Rate Limiter (Max 300 requests / 15 min to accommodate regular polling)
+// General API Rate Limiter (Max 1000 requests / 15 min to accommodate regular polling and high activity)
 export const globalRateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 300,
+  max: 1000,
   standardHeaders: true,
   legacyHeaders: false,
   message: {

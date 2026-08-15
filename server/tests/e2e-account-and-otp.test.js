@@ -11,8 +11,12 @@ console.log('========================================================\n');
 
 async function runGlobalTests() {
   const testEmail = `test.invite.${Date.now()}@ecofinance.ci`;
-  const testPhone = '+225 07 11 22 33 44';
+  const random8 = String(Date.now()).slice(-8);
+  const testPhone = `+225 07 ${random8.slice(0, 2)} ${random8.slice(2, 4)} ${random8.slice(4, 6)} ${random8.slice(6, 8)}`;
   const testPassword = 'Password@2026Secure';
+
+  // Nettoyage préventif
+  db.prepare("DELETE FROM users WHERE email LIKE 'test.invite.%'").run();
 
   // ----------------------------------------------------
   // TEST 1 : GÉNÉRATION ET VALIDATION OTP EMAIL AVEC FORÇAGE IPv4
@@ -107,29 +111,49 @@ async function runGlobalTests() {
   assert.ok(userByEmail, 'Recherche par email doit trouver le compte créé.');
   assert.ok(bcrypt.compareSync(newPassword, userByEmail.password_hash), 'Connexion email avec mot de passe valide.');
 
-  // Test lookup by phone formatted with spaces
+  // Test lookup by phone formatted with spaces or local digits
   const digitsOnlyPhone = testPhone.replace(/\D/g, '');
+  const local10 = digitsOnlyPhone.startsWith('225') ? digitsOnlyPhone.slice(3) : digitsOnlyPhone;
+  const with225 = digitsOnlyPhone.startsWith('225') ? digitsOnlyPhone : '225' + digitsOnlyPhone;
+  const withPlus225 = '+' + with225;
+
   const userByPhone = db.prepare(`
     SELECT * FROM users 
     WHERE LOWER(TRIM(email)) = ? 
+       OR UPPER(TRIM(my_referral_code)) = UPPER(TRIM(?))
+       OR phone = ? 
+       OR phone = ? 
        OR phone = ? 
        OR phone = ? 
        OR REPLACE(REPLACE(REPLACE(phone, ' ', ''), '-', ''), '+', '') = ?
-       OR REPLACE(REPLACE(phone, ' ', ''), '-', '') = ?
+       OR REPLACE(REPLACE(REPLACE(phone, ' ', ''), '-', ''), '+', '') = ?
+       OR REPLACE(REPLACE(REPLACE(phone, ' ', ''), '-', ''), '+', '') = ?
+       OR REPLACE(REPLACE(REPLACE(phone, ' ', ''), '-', ''), '+', '') = ?
   `).get(
-    '0711223344',
-    '0711223344',
-    '+2250711223344',
+    local10,
+    local10,
+    local10,
+    withPlus225,
+    local10,
     digitsOnlyPhone,
-    `+${digitsOnlyPhone}`
+    digitsOnlyPhone,
+    local10,
+    with225,
+    withPlus225
   );
   assert.ok(userByPhone, 'Recherche par téléphone sans espaces/indicatif doit trouver le compte.');
   assert.ok(bcrypt.compareSync(newPassword, userByPhone.password_hash), 'Connexion téléphone avec mot de passe valide.');
+
+  // Test lookup by referral code
+  const userByRefCode = db.prepare('SELECT * FROM users WHERE UPPER(TRIM(my_referral_code)) = UPPER(TRIM(?))').get(createdUser.my_referral_code);
+  assert.ok(userByRefCode, 'Recherche par Code de Parrainage doit trouver le compte créé.');
+  assert.ok(bcrypt.compareSync(newPassword, userByRefCode.password_hash), 'Connexion Code de Parrainage avec mot de passe valide.');
 
   // Test wrong password rejection
   assert.ok(!bcrypt.compareSync('MauvaisMotDePasse123!', userByEmail.password_hash), 'Mauvais mot de passe doit être rejeté.');
   console.log('   ✅ Reconnexion par Email validée avec succès !');
   console.log('   ✅ Reconnexion par Numéro Mobile (avec/sans espaces) validée avec succès !');
+  console.log('   ✅ Reconnexion par Code Parrainage (ID MLM) validée avec succès !');
   console.log('   ✅ Rejet strict des mauvais mots de passe validé avec succès !');
 
   // ----------------------------------------------------
