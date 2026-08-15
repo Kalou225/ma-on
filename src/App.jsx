@@ -12,6 +12,7 @@ import { ShareReferralModal } from './components/ShareReferralModal';
 import { InactivityTimer } from './components/InactivityTimer';
 import { ChatbotWidget } from './components/ChatbotWidget';
 import { InstallPWAPrompt } from './components/InstallPWAPrompt';
+import { AppUpdateBanner } from './components/AppUpdateBanner';
 
 import { DashboardView } from './views/DashboardView';
 import { NetworkView } from './views/NetworkView';
@@ -105,8 +106,9 @@ const MainApp = () => {
       {/* Chatbot Assistant (Uniquement réservé aux membres connectés) */}
       <ChatbotWidget />
 
-      {/* Mobile App Install Prompt */}
+      {/* Mobile App Install Prompt & Auto-Update Banner */}
       <InstallPWAPrompt />
+      <AppUpdateBanner />
 
       {/* Modals & Overlays */}
       <ManualDepositModal />

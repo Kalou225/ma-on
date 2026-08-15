@@ -26,6 +26,7 @@ import {
   Clock,
   ShieldCheck,
   Zap,
+  RefreshCw,
 } from 'lucide-react';
 
 import { compressProfileImage } from '../utils/imageHelper';
@@ -42,6 +43,10 @@ export const AccountSettingsModal = () => {
     updateAvatar,
     setShowShareModal,
     showToastNotification,
+    checkForAppUpdate,
+    applyAppUpdate,
+    isRefreshing,
+    isUpdateAvailable,
   } = useApp();
 
   const activeTab = settingsTab || 'profile';
@@ -695,6 +700,49 @@ export const AccountSettingsModal = () => {
                   <span>{isSavingPass ? 'Mise à jour...' : 'Mettre à Jour mon Mot de Passe'}</span>
                 </button>
               </form>
+
+              {/* Cache & App Version Section */}
+              <div className="mt-4 pt-4 border-t border-white/10 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="text-xs font-bold text-white flex items-center space-x-1.5">
+                      <span>Système & Version PWA</span>
+                    </h4>
+                    <p className="text-[10px] text-[#99907c]">Version 1.3.0 • Cache PWA Actif</p>
+                  </div>
+                  {isUpdateAvailable && (
+                    <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-[#10B981]/20 text-[#10B981] border border-[#10B981]/40 animate-pulse">
+                      Mise à jour prête !
+                    </span>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const updated = await checkForAppUpdate(false);
+                      if (!updated) {
+                        showToastNotification('Votre application est déjà à jour !', 'success');
+                      }
+                    }}
+                    className="py-2.5 px-3 rounded-xl bg-[#101416] hover:bg-[#161a1d] text-[#d0c5af] font-semibold text-xs flex items-center justify-center space-x-1.5 border border-white/10 active:scale-95 transition-all"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5 text-[#F2CA50]" />
+                    <span>Vérifier MàJ</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={applyAppUpdate}
+                    disabled={isRefreshing}
+                    className="py-2.5 px-3 rounded-xl bg-[#272a2d] hover:bg-[#323538] text-[#F2CA50] font-bold text-xs flex items-center justify-center space-x-1.5 border border-[#d4af37]/30 active:scale-95 transition-all"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
+                    <span>Purger le Cache</span>
+                  </button>
+                </div>
+              </div>
             </div>
           )}
         </div>

@@ -52,9 +52,24 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// Server Startup Timestamp for Cache-Busting & Auto-Update
+const SERVER_START_TIME = Date.now();
+const APP_VERSION = '1.3.0';
+
 // Health check endpoint
 app.get('/api/health', (req, res) => {
   res.json({ status: 'UP', security: 'OWASP_TOP_10_ENFORCED', timestamp: new Date().toISOString() });
+});
+
+// System Version endpoint for background auto-reloader & cache-busting
+app.get('/api/system/version', (req, res) => {
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.json({
+    version: APP_VERSION,
+    buildTime: SERVER_START_TIME,
+    timestamp: Date.now(),
+    service: 'Eco-Finance',
+  });
 });
 
 // Locate dist/ directory across common deployment paths

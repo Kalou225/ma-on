@@ -1,4 +1,4 @@
-const CACHE_NAME = 'eco-finance-pwa-v1';
+const CACHE_NAME = 'eco-finance-pwa-v2';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -8,6 +8,13 @@ const STATIC_ASSETS = [
   '/icon-512x512.png',
   '/apple-touch-icon.png'
 ];
+
+// Listen for SKIP_WAITING message from client to activate immediately
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
+});
 
 // Install Event
 self.addEventListener('install', (event) => {
@@ -42,13 +49,29 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // Network-First for HTML navigation requests (ensures new builds load immediately)
+  if (event.request.mode === 'navigate' || url.pathname === '/' || url.pathname.endsWith('.html')) {
+    event.respondWith(
+      fetch(event.request)
+        .then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200) {
+            const responseClone = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseClone));
+          }
+          return networkResponse;
+        })
+        .catch(() => caches.match(event.request))
+    );
+    return;
+  }
+
+  // Stale-While-Revalidate for static assets
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
       if (cachedResponse) {
-        // Return cached asset and update cache in background
         fetch(event.request)
           .then((networkResponse) => {
-            if (networkResponse.status === 200) {
+            if (networkResponse && networkResponse.status === 200) {
               caches.open(CACHE_NAME).then((cache) => cache.put(event.request, networkResponse));
             }
           })

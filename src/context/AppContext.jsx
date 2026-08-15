@@ -22,6 +22,10 @@ export const AppProvider = ({ children }) => {
   const [showShareModal, setShowShareModal] = useState(false);
   const [selectedRankCelebration, setSelectedRankCelebration] = useState(null);
 
+  // Background Auto-Update & Cache Management State
+  const [isUpdateAvailable, setIsUpdateAvailable] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
   // Core User State
   const [user, setUser] = useState({
     name: 'Membre Illuminati',
@@ -197,6 +201,108 @@ export const AppProvider = ({ children }) => {
       if (interval) clearInterval(interval);
     };
   }, [refreshUserData, isAuthenticated]);
+
+  // Background Auto-Update Checker
+  const checkForAppUpdate = useCallback(async (silent = true) => {
+    try {
+      const res = await fetch(`/api/system/version?t=${Date.now()}`, { cache: 'no-store' });
+      if (!res.ok) return false;
+      const data = await res.json();
+
+      if (!window.__APP_INITIAL_BUILD_TIME__) {
+        window.__APP_INITIAL_BUILD_TIME__ = data.buildTime;
+      } else if (data.buildTime && data.buildTime !== window.__APP_INITIAL_BUILD_TIME__) {
+        setIsUpdateAvailable(true);
+        if (!silent) {
+          showToastNotification('Une nouvelle version d\'Éco-Finance est disponible !', 'info');
+        }
+        return true;
+      }
+
+      // Check Service Worker registration update
+      if ('serviceWorker' in navigator) {
+        const reg = await navigator.serviceWorker.getRegistration();
+        if (reg) {
+          reg.update().catch(() => {});
+          if (reg.waiting) {
+            setIsUpdateAvailable(true);
+            return true;
+          }
+        }
+      }
+      return false;
+    } catch (e) {
+      return false;
+    }
+  }, [showToastNotification]);
+
+  // Apply App Update & Force Background Cache Purge
+  const applyAppUpdate = useCallback(async () => {
+    setIsRefreshing(true);
+    showToastNotification('Actualisation et purge du cache...', 'info');
+
+    // 1. Send SKIP_WAITING to all active/waiting service workers
+    if ('serviceWorker' in navigator) {
+      try {
+        const regs = await navigator.serviceWorker.getRegistrations();
+        for (const reg of regs) {
+          if (reg.waiting) {
+            reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+          }
+          if (reg.active) {
+            reg.active.postMessage({ type: 'SKIP_WAITING' });
+          }
+        }
+      } catch (e) {}
+    }
+
+    // 2. Clear browser CacheStorage
+    if ('caches' in window) {
+      try {
+        const cacheNames = await caches.keys();
+        await Promise.all(cacheNames.map((c) => caches.delete(c)));
+      } catch (e) {}
+    }
+
+    // 3. Clear temporary session storage
+    try {
+      sessionStorage.clear();
+    } catch (e) {}
+
+    // 4. Force hard reload with timestamp
+    setTimeout(() => {
+      window.location.href = window.location.origin + window.location.pathname + '?v=' + Date.now();
+    }, 300);
+  }, [showToastNotification]);
+
+  // Periodic background check for new updates (every 45s, on focus, and on visibilitychange)
+  useEffect(() => {
+    // Initial check on load
+    checkForAppUpdate(true);
+
+    const updateInterval = setInterval(() => {
+      checkForAppUpdate(true);
+    }, 45000);
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        checkForAppUpdate(true);
+      }
+    };
+
+    const handleFocus = () => {
+      checkForAppUpdate(true);
+    };
+
+    document.addEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      clearInterval(updateInterval);
+      document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, [checkForAppUpdate]);
 
   // 1. Submit Manual Deposit (User Action)
   const submitManualDeposit = async ({ amount, providerId, senderNumber, txnId, dateTime }) => {
@@ -585,6 +691,11 @@ export const AppProvider = ({ children }) => {
         selectedReceiptTxn,
         setSelectedReceiptTxn,
         openTransactionReceipt,
+        isUpdateAvailable,
+        setIsUpdateAvailable,
+        isRefreshing,
+        checkForAppUpdate,
+        applyAppUpdate,
         showShareModal,
         setShowShareModal,
         selectedRankCelebration,

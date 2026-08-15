@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { Bell, ShieldCheck, ShieldAlert, Sparkles, User, X, Smartphone, LogOut } from 'lucide-react';
+import { Bell, ShieldCheck, ShieldAlert, Sparkles, User, X, Smartphone, LogOut, RefreshCw } from 'lucide-react';
 
 export const Header = () => {
-  const { user, setActiveTab, notifications, markNotificationsRead, logout } = useApp();
+  const { user, setActiveTab, notifications, markNotificationsRead, logout, isUpdateAvailable, isRefreshing, applyAppUpdate } = useApp();
   const [showNotifications, setShowNotifications] = useState(false);
 
   const unreadCount = notifications.filter((n) => !n.read).length;
@@ -63,6 +63,24 @@ export const Header = () => {
               </>
             )}
           </div>
+
+          {/* Quick Refresh / Update Button */}
+          <button
+            type="button"
+            onClick={applyAppUpdate}
+            disabled={isRefreshing}
+            className={`p-2 rounded-xl transition-all relative border ${
+              isUpdateAvailable
+                ? 'bg-[#F2CA50]/20 hover:bg-[#F2CA50]/30 text-[#F2CA50] border-[#F2CA50]/50 shadow-md animate-pulse'
+                : 'bg-[#1d2022] hover:bg-[#272a2d] text-[#d0c5af] border-white/5'
+            }`}
+            title={isUpdateAvailable ? 'Mise à jour prête ! Cliquez pour actualiser' : 'Actualiser l\'application et vider le cache'}
+          >
+            <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-[#F2CA50]' : ''}`} />
+            {isUpdateAvailable && (
+              <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-[#10B981] rounded-full border border-[#101416]"></span>
+            )}
+          </button>
 
           {/* Notifications Dropdown */}
           <div className="relative">
