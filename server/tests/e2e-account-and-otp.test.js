@@ -1,5 +1,5 @@
 import assert from 'assert';
-import db from '../db/database.js';
+import db, { saveUserToStore, getUsersFromStore, removeUserFromStore, syncStoreToDb } from '../db/database.js';
 import { generateAndSendOtp, verifyOtp } from '../services/otpService.js';
 import { sendOtpEmail } from '../services/emailService.js';
 import bcrypt from 'bcryptjs';
@@ -160,7 +160,6 @@ async function runGlobalTests() {
   // TEST 6 : PERSISTANCE REDONDANTE (STORE MIROIR JSON) & RESTAURATION AUTO
   // ----------------------------------------------------
   console.log('\n6️⃣ Test : Persistance redondante & Restauration automatique (Store Miroir)...');
-  const { saveUserToStore, getUsersFromStore, syncStoreToDb } = await import('../db/database.js');
   
   const mirrorUserId = `usr-mirror-${Date.now()}`;
   const mirrorEmail = `mirror.test.${Date.now()}@ecofinance.ci`;
@@ -191,6 +190,7 @@ async function runGlobalTests() {
 
   // Clean mirror user
   db.prepare('DELETE FROM users WHERE id = ?').run(mirrorUserId);
+  removeUserFromStore(mirrorUserId);
 
   // ----------------------------------------------------
   // TEST 7 : CONTRÔLE FINANCIER & PRÉ-REMPLISSAGE RETRAIT
@@ -205,7 +205,6 @@ async function runGlobalTests() {
   // TEST 8 : RÉINITIALISATION MDP & SUPPRESSION UTILISATEUR (BACK-OFFICE ADMIN)
   // ----------------------------------------------------
   console.log('\n8️⃣ Test : Réinitialisation MDP & Suppression Utilisateur par l\'Administrateur...');
-  const { removeUserFromStore } = await import('../db/database.js');
   
   // Test password reset by admin
   const adminTempPass = 'EcoAdminTemp@2026';
@@ -243,9 +242,11 @@ async function runGlobalTests() {
   console.log('   ✅ Photo de profil stockée en SQLite avec succès !');
   console.log('   ✅ Photo de profil synchronisée dans le Store Miroir avec succès !');
 
-  // Nettoyage
+  // Nettoyage complet
   db.prepare('DELETE FROM users WHERE id = ?').run(avatarUserId);
   removeUserFromStore(avatarUserId);
+  db.prepare('DELETE FROM users WHERE id = ?').run(userId);
+  removeUserFromStore(userId);
   db.prepare('DELETE FROM otp_verifications WHERE identifier = ?').run(testEmail.toLowerCase());
 
   console.log('\n========================================================');

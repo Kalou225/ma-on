@@ -1,7 +1,7 @@
 import assert from 'assert';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import db, { saveUserToStore, syncStoreToDb } from '../db/database.js';
+import db, { saveUserToStore, removeUserFromStore, syncStoreToDb } from '../db/database.js';
 import { config } from '../config/security.js';
 import { requireMasterAdmin, requireAdminOrSubAdmin } from '../middleware/authMiddleware.js';
 
@@ -156,10 +156,16 @@ assert.strictEqual(revokedUser.role, 'MEMBRE', 'L\'utilisateur doit être redeve
 assert.strictEqual(revokedUser.sub_admin_access_code, null, 'Le code sous-admin doit être effacé');
 console.log('   ✅ Révocation réussie : L\'utilisateur est redevenu un simple membre.\n');
 
+// 7. Nettoyage Complet des Comptes de Test
+db.prepare('DELETE FROM users WHERE id IN (?, ?)').run(testAdminId, testUserId);
+removeUserFromStore(testAdminId);
+removeUserFromStore(testUserId);
+
 console.log('========================================================');
 console.log('🎉 TOUS LES TESTS PARAMÈTRES & SOUS-ADMIN ONT RÉUSSI (100%) !');
 console.log('   - Modification Références Super Admin : OPÉRATIONNELLE ✅');
 console.log('   - Nomination Sous-Admin & Code d\'Accès : OPÉRATIONNELLE ✅');
 console.log('   - Scission des Privilèges & Blocage 403 : VALIDÉE ✅');
 console.log('   - Révocation Immédiate : VALIDÉE ✅');
+console.log('   - Nettoyage des Données de Test : VALIDÉ ✅');
 console.log('========================================================\n');

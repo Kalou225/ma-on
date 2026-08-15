@@ -1,5 +1,5 @@
 import assert from 'assert';
-import db, { checkpointDb, saveUserToStore, getUsersFromStore, syncStoreToDb } from '../db/database.js';
+import db, { checkpointDb, saveUserToStore, removeUserFromStore, getUsersFromStore, syncStoreToDb } from '../db/database.js';
 import { calculateRankAndRate, getNextRank, getRankDetails, getHigherRanks, RANKS_CONFIG } from '../services/rankService.js';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
@@ -216,6 +216,9 @@ async function runRankUpgradeTests() {
     // Nettoyage final
     db.prepare('DELETE FROM transactions WHERE user_id IN (?, ?, ?)').run(sponsorId, userId, subId);
     db.prepare('DELETE FROM users WHERE id IN (?, ?, ?)').run(sponsorId, userId, subId);
+    removeUserFromStore(sponsorId);
+    removeUserFromStore(userId);
+    removeUserFromStore(subId);
 
     console.log('\n========================================================');
     console.log('🎉 TOUS LES TESTS DE MONTÉE DE GRADE ONT RÉUSSI (100%) !');

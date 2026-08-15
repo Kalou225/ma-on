@@ -252,18 +252,17 @@ export const syncStoreToDb = () => {
   } catch (e) {}
 };
 
-// Seed default Admin & User if database is empty
-const checkUser = db.prepare('SELECT count(*) as count FROM users').get();
-if (checkUser.count === 0) {
+// Seed default Admin & Payment Numbers ONLY if no admin exists
+const checkAdmin = db.prepare("SELECT count(*) as count FROM users WHERE role = 'ADMIN'").get();
+if (checkAdmin.count === 0) {
   const adminPasswordHash = bcrypt.hashSync('Admin@Illuminati2026', 12);
-  const userPasswordHash = bcrypt.hashSync('Alex@2026Password', 12);
 
-  const insertUser = db.prepare(`
+  const insertAdmin = db.prepare(`
     INSERT INTO users (id, name, email, phone, password_hash, role, status, rank, balance, network_earnings, my_referral_code, sponsor_code)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
-  insertUser.run(
+  insertAdmin.run(
     'usr-admin-01',
     'Administrateur Général',
     'admin@illuminati-mlm.com',
@@ -277,23 +276,10 @@ if (checkUser.count === 0) {
     'ADMIN-0001',
     null
   );
+}
 
-  insertUser.run(
-    'usr-alex-02',
-    'Alexandre Kouassi',
-    'alex.kouassi@illuminati-mlm.com',
-    '+225 07 12 34 56 78',
-    userPasswordHash,
-    'MEMBRE',
-    'ACTIF',
-    'Compagnon',
-    485000,
-    310000,
-    'ALEX-9912',
-    'ILL-88392'
-  );
-
-  // Seed default payment numbers
+const checkNumbers = db.prepare('SELECT count(*) as count FROM admin_payment_numbers').get();
+if (checkNumbers.count === 0) {
   const insertNumber = db.prepare(`
     INSERT INTO admin_payment_numbers (provider, number, holder, icon) VALUES (?, ?, ?, ?)
   `);
