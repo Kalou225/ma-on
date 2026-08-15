@@ -17,6 +17,8 @@ export const AppProvider = ({ children }) => {
   const [showRankSuccessModal, setShowRankSuccessModal] = useState(false);
   const [showUpgradeRankModal, setShowUpgradeRankModal] = useState(false);
   const [selectedTargetRank, setSelectedTargetRank] = useState(null);
+  const [showReceiptModal, setShowReceiptModal] = useState(false);
+  const [selectedReceiptTxn, setSelectedReceiptTxn] = useState(null);
   const [showShareModal, setShowShareModal] = useState(false);
   const [selectedRankCelebration, setSelectedRankCelebration] = useState(null);
 
@@ -266,6 +268,12 @@ export const AppProvider = ({ children }) => {
       showToastNotification(err.message || 'Erreur lors de la montée de grade', 'error');
       return { success: false, error: err.message };
     }
+  };
+
+  // 2.ter Open Transaction Receipt Modal
+  const openTransactionReceipt = (transaction) => {
+    setSelectedReceiptTxn(transaction);
+    setShowReceiptModal(true);
   };
 
   // 3. Approve Deposit (Admin Action)
@@ -572,6 +580,11 @@ export const AppProvider = ({ children }) => {
         selectedTargetRank,
         setSelectedTargetRank,
         upgradeRank,
+        showReceiptModal,
+        setShowReceiptModal,
+        selectedReceiptTxn,
+        setSelectedReceiptTxn,
+        openTransactionReceipt,
         showShareModal,
         setShowShareModal,
         selectedRankCelebration,

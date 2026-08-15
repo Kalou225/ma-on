@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { History, Search, Download, FileSpreadsheet } from 'lucide-react';
+import { History, Search, Download, FileSpreadsheet, FileText, Image as ImageIcon, ReceiptText, ChevronRight } from 'lucide-react';
+import { downloadHistoryStatementPDF, downloadHistoryStatementJPEG } from '../utils/receiptGenerator';
 
 export const HistoryView = () => {
-  const { transactions } = useApp();
+  const { transactions, user, openTransactionReceipt, showToastNotification } = useApp();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('ALL');
   const [statusFilter, setStatusFilter] = useState('ALL');
@@ -18,11 +19,11 @@ export const HistoryView = () => {
       filterType === 'ALL'
         ? true
         : filterType === 'DEPOT'
-        ? t.type.includes('DEPOT')
+        ? (t.type || '').includes('DEPOT')
         : filterType === 'RETRAIT'
-        ? t.type.includes('RETRAIT')
+        ? (t.type || '').includes('RETRAIT')
         : filterType === 'COMMISSION'
-        ? t.type.includes('COMMISSION')
+        ? (t.type || '').includes('COMMISSION')
         : true;
 
     const matchesStatus =
@@ -39,55 +40,68 @@ export const HistoryView = () => {
     return matchesSearch && matchesType && matchesStatus;
   });
 
-  const exportToCSV = () => {
+  const getFilterLabel = () => {
+    const typeLabel = filterType === 'ALL' ? 'Toutes' : filterType;
+    const statusLabel = statusFilter === 'ALL' ? 'Tous statuts' : statusFilter;
+    return `${typeLabel} (${statusLabel})`;
+  };
+
+  const handleExportPDF = () => {
     if (filtered.length === 0) return;
+    try {
+      downloadHistoryStatementPDF(filtered, user, getFilterLabel());
+      showToastNotification('Relevé PDF généré avec succès !', 'success');
+    } catch (e) {
+      showToastNotification('Erreur lors de la génération du PDF', 'error');
+    }
+  };
 
-    const headers = ['ID', 'Date', 'Type', 'Libelle', 'Montant (FCFA)', 'Statut', 'Moyen/Provider', 'Ref Txn', 'Note'];
-    const rows = filtered.map((t) => [
-      t.id,
-      t.date_time || t.dateTime || '',
-      t.type,
-      `"${(t.label || '').replace(/"/g, '""')}"`,
-      t.amount,
-      t.status,
-      t.provider || '',
-      t.txnId || t.txn_id || '',
-      `"${(t.note || '').replace(/"/g, '""')}"`,
-    ]);
-
-    const csvContent =
-      'data:text/csv;charset=utf-8,\uFEFF' +
-      [headers.join(';'), ...rows.map((e) => e.join(';'))].join('\n');
-
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `eco-finance-releve-${new Date().toISOString().slice(0, 10)}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  const handleExportJPEG = () => {
+    if (filtered.length === 0) return;
+    try {
+      downloadHistoryStatementJPEG(filtered, user, getFilterLabel());
+      showToastNotification('Relevé JPEG généré avec succès !', 'success');
+    } catch (e) {
+      showToastNotification('Erreur lors de la génération du JPEG', 'error');
+    }
   };
 
   return (
     <div className="space-y-4 pb-6 animate-in fade-in">
       <div className="p-4 rounded-3xl glass-card border border-[#d4af37]/30 space-y-3">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-2">
           <div className="flex items-center space-x-2">
             <div className="w-8 h-8 rounded-xl bg-[#F2CA50]/20 flex items-center justify-center border border-[#F2CA50]/40">
               <History className="w-4 h-4 text-[#F2CA50]" />
             </div>
-            <h2 className="font-bold text-[#e0e3e6] text-sm">Journal & Historique des Activités</h2>
+            <div>
+              <h2 className="font-bold text-[#e0e3e6] text-sm">Journal & Historique</h2>
+              <p className="text-[10px] text-[#99907c]">Reçus et relevés certifiés</p>
+            </div>
           </div>
 
-          <button
-            onClick={exportToCSV}
-            disabled={filtered.length === 0}
-            className="px-3 py-1.5 rounded-xl text-xs font-bold bg-[#F2CA50] text-black hover:brightness-110 flex items-center space-x-1 disabled:opacity-50 disabled:cursor-not-allowed shadow-md transition-all"
-            title="Exporter les transactions au format CSV"
-          >
-            <Download className="w-3.5 h-3.5" />
-            <span>Export CSV</span>
-          </button>
+          {/* Export Buttons Group (PDF & JPEG) */}
+          <div className="flex items-center space-x-1.5">
+            <button
+              onClick={handleExportPDF}
+              disabled={filtered.length === 0}
+              className="px-2.5 py-1.5 rounded-xl text-xs font-bold bg-[#F2CA50] text-black hover:brightness-110 flex items-center space-x-1 disabled:opacity-50 disabled:cursor-not-allowed shadow-md transition-all active:scale-95"
+              title="Exporter le relevé officiel au format PDF"
+            >
+              <FileText className="w-3.5 h-3.5" />
+              <span>Export PDF</span>
+            </button>
+
+            <button
+              onClick={handleExportJPEG}
+              disabled={filtered.length === 0}
+              className="px-2.5 py-1.5 rounded-xl text-xs font-bold bg-[#272a2d] hover:bg-[#323538] text-[#F2CA50] border border-[#d4af37]/30 flex items-center space-x-1 disabled:opacity-50 disabled:cursor-not-allowed shadow-md transition-all active:scale-95"
+              title="Exporter le relevé au format Image JPEG"
+            >
+              <ImageIcon className="w-3.5 h-3.5" />
+              <span>Export JPEG</span>
+            </button>
+          </div>
         </div>
 
         {/* Search Input */}
@@ -103,7 +117,7 @@ export const HistoryView = () => {
         </div>
 
         {/* Filter Pills (Types) */}
-        <div className="flex space-x-1.5 text-[11px] overflow-x-auto pb-1">
+        <div className="flex space-x-1.5 text-[11px] overflow-x-auto pb-1 scrollbar-none">
           {[
             { id: 'ALL', label: 'Toutes' },
             { id: 'DEPOT', label: 'Dépôts' },
@@ -158,37 +172,57 @@ export const HistoryView = () => {
           filtered.map((item) => (
             <div
               key={item.id}
-              className="p-3.5 rounded-2xl bg-[#1d2022] border border-white/5 flex items-center justify-between"
+              onClick={() => openTransactionReceipt(item)}
+              className="p-3.5 rounded-2xl bg-[#1d2022] hover:bg-[#23272a] border border-white/5 hover:border-[#d4af37]/40 flex items-center justify-between transition-all cursor-pointer group shadow-sm"
             >
-              <div className="space-y-0.5">
+              <div className="space-y-0.5 max-w-[65%]">
                 <div className="flex items-center space-x-2">
-                  <span className="text-xs font-bold text-white">{item.label}</span>
-                  <span className="text-[10px] font-mono text-[#99907c]">{item.id}</span>
+                  <span className="text-xs font-bold text-white group-hover:text-[#F2CA50] transition-colors truncate">
+                    {item.label}
+                  </span>
+                  <span className="text-[9px] font-mono text-[#99907c] px-1.5 py-0.2 rounded bg-black/40">
+                    {item.id}
+                  </span>
                 </div>
-                <p className="text-[11px] text-[#d0c5af]">
-                  {item.dateTime || item.date_time} • {item.provider ? `${item.provider}` : ''} {item.txnId || item.txn_id ? `(Ref: ${item.txnId || item.txn_id})` : ''}
+                <p className="text-[11px] text-[#d0c5af] truncate">
+                  {item.dateTime || item.date_time} {item.provider ? `• ${item.provider}` : ''} {item.txnId || item.txn_id ? `(Ref: ${item.txnId || item.txn_id})` : ''}
                 </p>
                 {item.senderNumber && (
                   <p className="text-[10px] text-[#99907c]">Expéditeur : {item.senderNumber}</p>
                 )}
-                {item.note && <p className="text-[10px] text-[#99907c] italic">{item.note}</p>}
+                {item.note && <p className="text-[10px] text-[#99907c] italic truncate">{item.note}</p>}
               </div>
 
-              <div className="text-right shrink-0">
+              <div className="text-right shrink-0 space-y-1">
                 <span className="text-xs font-mono font-bold text-white block">
-                  +{item.amount.toLocaleString()} FCFA
+                  +{Number(item.amount || 0).toLocaleString()} FCFA
                 </span>
-                <span
-                  className={`text-[9px] font-bold px-2 py-0.5 rounded inline-block mt-1 ${
-                    item.status === 'VALIDÉ'
-                      ? 'bg-[#10B981]/15 text-[#10B981]'
-                      : item.status === 'EN_ATTENTE'
-                      ? 'bg-[#F2CA50]/15 text-[#F2CA50]'
-                      : 'bg-[#E63946]/15 text-[#E63946]'
-                  }`}
-                >
-                  {item.status}
-                </span>
+                
+                <div className="flex items-center justify-end space-x-1.5">
+                  <span
+                    className={`text-[9px] font-bold px-2 py-0.5 rounded ${
+                      item.status === 'VALIDÉ'
+                        ? 'bg-[#10B981]/15 text-[#10B981]'
+                        : item.status === 'EN_ATTENTE'
+                        ? 'bg-[#F2CA50]/15 text-[#F2CA50]'
+                        : 'bg-[#E63946]/15 text-[#E63946]'
+                    }`}
+                  >
+                    {item.status}
+                  </span>
+
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openTransactionReceipt(item);
+                    }}
+                    className="p-1 rounded-lg bg-[#272a2d] hover:bg-[#F2CA50] hover:text-black text-[#99907c] transition-all"
+                    title="Voir et télécharger le reçu"
+                  >
+                    <ReceiptText className="w-3.5 h-3.5" />
+                  </button>
+                </div>
               </div>
             </div>
           ))
@@ -197,3 +231,4 @@ export const HistoryView = () => {
     </div>
   );
 };
+

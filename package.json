@@ -19,6 +19,8 @@
     "@tailwindcss/vite": "^4.3.3",
     "@vitejs/plugin-react": "^6.0.4",
     "canvas-confetti": "^1.9.4",
+    "html2canvas": "^1.4.1",
+    "jspdf": "^4.2.1",
     "lucide-react": "^1.28.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
@@ -31,4 +33,3 @@
     "oxlint": "^1.75.0"
   }
 }
-

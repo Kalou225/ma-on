@@ -7,6 +7,7 @@ import { ManualDepositModal } from './components/ManualDepositModal';
 import { WithdrawModal } from './components/WithdrawModal';
 import { RankSuccessModal } from './components/RankSuccessModal';
 import { UpgradeRankModal } from './components/UpgradeRankModal';
+import { TransactionReceiptModal } from './components/TransactionReceiptModal';
 import { ShareReferralModal } from './components/ShareReferralModal';
 import { InactivityTimer } from './components/InactivityTimer';
 import { ChatbotWidget } from './components/ChatbotWidget';
@@ -112,6 +113,7 @@ const MainApp = () => {
       <WithdrawModal />
       <RankSuccessModal />
       <UpgradeRankModal />
+      <TransactionReceiptModal />
       <ShareReferralModal />
       <AccountSettingsModal />
       <InactivityTimer />
