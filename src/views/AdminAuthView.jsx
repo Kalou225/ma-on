@@ -16,8 +16,8 @@ import {
 
 export const AdminAuthView = ({ onExitAdminPortal }) => {
   const { login } = useApp();
-  const [identifier, setIdentifier] = useState('admin@illuminati-mlm.com');
-  const [password, setPassword] = useState('Admin@Illuminati2026');
+  const [identifier, setIdentifier] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [authError, setAuthError] = useState('');

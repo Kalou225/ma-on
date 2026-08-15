@@ -522,35 +522,6 @@ export const AuthView = () => {
               <span>{isSubmitting ? 'Connexion en cours...' : 'Se Connecter'}</span>
               <ArrowRight className="w-4 h-4" />
             </button>
-
-            {/* Quick Demo Accounts */}
-            <div className="pt-4 border-t border-white/5 space-y-2">
-              <p className="text-[11px] text-center text-[#99907c]">Comptes de test pré-configurés :</p>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setLoginIdentifier('alex.kouassi@illuminati-mlm.com');
-                    setLoginPassword('Alex@2026Password');
-                  }}
-                  className="flex-1 py-2 px-3 bg-[#191c1e] hover:bg-white/5 border border-white/10 rounded-xl text-[11px] text-[#F2CA50] flex items-center justify-center space-x-1"
-                >
-                  <User className="w-3 h-3" />
-                  <span>Membre Alex</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setLoginIdentifier('admin@illuminati-mlm.com');
-                    setLoginPassword('Admin@Illuminati2026');
-                  }}
-                  className="flex-1 py-2 px-3 bg-[#191c1e] hover:bg-white/5 border border-white/10 rounded-xl text-[11px] text-[#E63946] flex items-center justify-center space-x-1"
-                >
-                  <ShieldAlert className="w-3 h-3" />
-                  <span>Admin Général</span>
-                </button>
-              </div>
-            </div>
           </form>
         )}
 
