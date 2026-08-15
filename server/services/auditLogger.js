@@ -19,10 +19,13 @@ export const logger = winston.createLogger({
     new winston.transports.Console({
       format: winston.format.combine(
         winston.format.colorize(),
-        winston.format.printf(({ timestamp, level, message, ...meta }) => {
-          return `[${timestamp}] [SECURITY AUDIT] ${level}: ${message} ${
-            Object.keys(meta).length ? JSON.stringify(meta) : ''
-          }`;
+        winston.format.printf(({ timestamp, level, message, event, userId, ip, severity, details }) => {
+          const evt = event || message;
+          const uId = userId || 'ANONYMOUS';
+          const clientIp = ip || 'UNKNOWN';
+          const sev = severity || 'INFO';
+          const extra = details ? ` ${JSON.stringify(details)}` : '';
+          return `[${timestamp}] [SECURITY AUDIT] ${level}: [${evt}] (user: ${uId}, ip: ${clientIp}, sev: ${sev})${extra}`;
         })
       ),
     }),
@@ -31,6 +34,7 @@ export const logger = winston.createLogger({
 
 export const logSecurityEvent = (eventType, { userId, ip, details, severity = 'INFO' }) => {
   logger.info({
+    message: eventType,
     event: eventType,
     userId: userId || 'ANONYMOUS',
     ip: ip || 'UNKNOWN',

@@ -2,7 +2,7 @@ import express from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { z } from 'zod';
-import db from '../db/database.js';
+import db, { checkpointDb, saveUserToStore, syncStoreToDb } from '../db/database.js';
 import { config } from '../config/security.js';
 import { validateRequest } from '../middleware/validate.js';
 import { strictAuthRateLimiter } from '../middleware/rateLimiter.js';
@@ -73,7 +73,7 @@ const signupSchema = z.object({
   }),
 });
 
-// Helper to generate access & refresh tokens
+// Helper to generate access & refresh tokens (30 days continuous access)
 const issueTokens = (res, userId, role) => {
   const accessToken = jwt.sign({ userId, role }, config.jwtAccessSecret, {
     expiresIn: config.accessTokenExpiry,
@@ -83,12 +83,12 @@ const issueTokens = (res, userId, role) => {
     expiresIn: `${config.refreshTokenExpiryDays}d`,
   });
 
-  // Store Access & Refresh Tokens in Secure HttpOnly SameSite Cookies
+  // Store Access & Refresh Tokens in Secure HttpOnly SameSite Cookies (30 days)
   res.cookie('accessToken', accessToken, {
     httpOnly: true,
     secure: config.nodeEnv === 'production',
     sameSite: 'lax',
-    maxAge: 15 * 60 * 1000, // 15 mins
+    maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
   });
 
   res.cookie('refreshToken', refreshToken, {
@@ -243,6 +243,13 @@ router.post('/forgot-password/reset', strictAuthRateLimiter, validateRequest(for
   const passwordHash = bcrypt.hashSync(newPassword, config.saltRounds);
   db.prepare('UPDATE users SET password_hash = ?, failed_attempts = 0, lockout_until = NULL WHERE id = ?').run(passwordHash, user.id);
 
+  saveUserToStore({
+    id: user.id,
+    email: user.email,
+    password_hash: passwordHash,
+  });
+  checkpointDb();
+
   logSecurityEvent('PASSWORD_RESET_SUCCESS', {
     userId: user.id,
     ip: req.ip,
@@ -262,12 +269,11 @@ router.post('/login', strictAuthRateLimiter, validateRequest(loginSchema), (req,
   const rawIdentifier = identifier.trim();
   const digitsOnly = rawIdentifier.replace(/\D/g, '');
 
-  // Robust search by email or phone (handles formats with or without spaces, country codes, dashes)
-  let user = null;
-  if (cleanIdentifier.includes('@')) {
-    user = db.prepare('SELECT * FROM users WHERE LOWER(TRIM(email)) = ?').get(cleanIdentifier);
-  } else {
-    user = db.prepare(`
+  const findUserQuery = () => {
+    if (cleanIdentifier.includes('@')) {
+      return db.prepare('SELECT * FROM users WHERE LOWER(TRIM(email)) = ?').get(cleanIdentifier);
+    }
+    return db.prepare(`
       SELECT * FROM users 
       WHERE LOWER(TRIM(email)) = ? 
          OR phone = ? 
@@ -281,6 +287,15 @@ router.post('/login', strictAuthRateLimiter, validateRequest(loginSchema), (req,
       digitsOnly,
       digitsOnly ? `+${digitsOnly}` : rawIdentifier
     );
+  };
+
+  // Robust search by email or phone
+  let user = findUserQuery();
+
+  // If user was not found in SQLite, attempt auto-restoration from mirror store
+  if (!user) {
+    syncStoreToDb();
+    user = findUserQuery();
   }
 
   if (!user) {
@@ -306,6 +321,7 @@ router.post('/login', strictAuthRateLimiter, validateRequest(loginSchema), (req,
     }
 
     db.prepare('UPDATE users SET failed_attempts = ?, lockout_until = ? WHERE id = ?').run(attempts, lockout, user.id);
+    logSecurityEvent('LOGIN_FAILED_WRONG_PASSWORD', { userId: user.id, ip: req.ip, details: { identifier: rawIdentifier }, severity: 'WARNING' });
     return res.status(401).json({ error: 'Identifiants ou mot de passe incorrects. Vérifiez votre mot de passe.' });
   }
 
@@ -320,7 +336,7 @@ router.post('/login', strictAuthRateLimiter, validateRequest(loginSchema), (req,
   db.prepare('UPDATE users SET failed_attempts = 0, lockout_until = NULL WHERE id = ?').run(user.id);
 
   const { accessToken } = issueTokens(res, user.id, user.role);
-  logSecurityEvent('USER_LOGIN_SUCCESS', { userId: user.id, ip: req.ip });
+  logSecurityEvent('USER_LOGIN_SUCCESS', { userId: user.id, ip: req.ip, details: { email: user.email, role: user.role } });
 
   res.json({
     message: 'Connexion réussie',
@@ -380,6 +396,25 @@ router.post('/signup', validateRequest(signupSchema), (req, res) => {
     INSERT INTO users (id, name, email, phone, password_hash, role, status, rank, balance, activation_balance, commission_balance, my_referral_code, sponsor_code)
     VALUES (?, ?, ?, ?, ?, 'MEMBRE', 'INACTIF', 'Apprenti', 0, 0, 0, ?, ?)
   `).run(userId, cleanName, cleanEmail, cleanPhone, passwordHash, referralCode, cleanSponsor);
+
+  // Dual-persistence: save to JSON mirror store and force WAL checkpoint
+  saveUserToStore({
+    id: userId,
+    name: cleanName,
+    email: cleanEmail,
+    phone: cleanPhone,
+    password_hash: passwordHash,
+    role: 'MEMBRE',
+    status: 'INACTIF',
+    rank: 'Apprenti',
+    balance: 0,
+    activation_balance: 0,
+    commission_balance: 0,
+    network_earnings: 0,
+    my_referral_code: referralCode,
+    sponsor_code: cleanSponsor,
+  });
+  checkpointDb();
 
   const { accessToken } = issueTokens(res, userId, 'MEMBRE');
   logSecurityEvent('USER_REGISTERED', { userId, ip: req.ip, details: { phone: cleanPhone, email: cleanEmail } });
@@ -499,6 +534,17 @@ router.put('/profile', authenticateToken, (req, res) => {
     req.user.id
   );
 
+  saveUserToStore({
+    id: req.user.id,
+    name: cleanName,
+    phone: cleanPhone,
+    default_payment_provider: defaultPaymentProvider,
+    default_payment_number: defaultPaymentNumber,
+    default_payment_holder: defaultPaymentHolder,
+    preferred_otp_channel: preferredOtpChannel,
+  });
+  checkpointDb();
+
   logSecurityEvent('USER_PROFILE_UPDATED', { userId: req.user.id, ip: req.ip });
 
   res.json({
@@ -543,6 +589,12 @@ router.put('/change-password', authenticateToken, (req, res) => {
 
   const newHash = bcrypt.hashSync(newPassword, config.saltRounds);
   db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(newHash, req.user.id);
+
+  saveUserToStore({
+    id: req.user.id,
+    password_hash: newHash,
+  });
+  checkpointDb();
 
   logSecurityEvent('PASSWORD_CHANGE_SUCCESS', { userId: req.user.id, ip: req.ip, severity: 'HIGH' });
 

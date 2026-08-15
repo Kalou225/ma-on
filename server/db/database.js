@@ -147,6 +147,97 @@ try {
   db.exec(`ALTER TABLE users ADD COLUMN preferred_otp_channel TEXT DEFAULT 'EMAIL';`);
 } catch (e) {}
 
+const usersStorePath = path.join(dataDir, 'users-store.json');
+
+// Helper to checkpoint WAL to disk immediately
+export const checkpointDb = () => {
+  try {
+    db.pragma('wal_checkpoint(FULL)');
+  } catch (e) {}
+};
+
+// Helper to get users from mirror JSON store
+export const getUsersFromStore = () => {
+  try {
+    if (fs.existsSync(usersStorePath)) {
+      const data = fs.readFileSync(usersStorePath, 'utf8');
+      return JSON.parse(data);
+    }
+  } catch (e) {}
+  return [];
+};
+
+// Helper to save or update a user in mirror JSON store
+export const saveUserToStore = (user) => {
+  try {
+    const users = getUsersFromStore();
+    const existingIndex = users.findIndex((u) => u.id === user.id || u.email?.toLowerCase() === user.email?.toLowerCase());
+    if (existingIndex >= 0) {
+      users[existingIndex] = { ...users[existingIndex], ...user };
+    } else {
+      users.push(user);
+    }
+    fs.writeFileSync(usersStorePath, JSON.stringify(users, null, 2), 'utf8');
+  } catch (e) {}
+};
+
+// Helper to sync all database users into the JSON store
+export const syncDbToStore = () => {
+  try {
+    const allUsers = db.prepare('SELECT * FROM users').all();
+    if (allUsers && allUsers.length > 0) {
+      fs.writeFileSync(usersStorePath, JSON.stringify(allUsers, null, 2), 'utf8');
+    }
+  } catch (e) {}
+};
+
+// Helper to sync JSON store into SQLite (auto-restore on boot)
+export const syncStoreToDb = () => {
+  try {
+    const storeUsers = getUsersFromStore();
+    if (Array.isArray(storeUsers) && storeUsers.length > 0) {
+      const insertOrIgnore = db.prepare(`
+        INSERT OR IGNORE INTO users (
+          id, name, email, phone, password_hash, role, status, rank,
+          balance, activation_balance, commission_balance, network_earnings,
+          my_referral_code, sponsor_code, avatar_url, default_payment_provider,
+          default_payment_number, default_payment_holder, preferred_otp_channel
+        ) VALUES (
+          @id, @name, @email, @phone, @password_hash, @role, @status, @rank,
+          @balance, @activation_balance, @commission_balance, @network_earnings,
+          @my_referral_code, @sponsor_code, @avatar_url, @default_payment_provider,
+          @default_payment_number, @default_payment_holder, @preferred_otp_channel
+        )
+      `);
+
+      for (const u of storeUsers) {
+        insertOrIgnore.run({
+          id: u.id,
+          name: u.name || 'Membre',
+          email: u.email,
+          phone: u.phone || '',
+          password_hash: u.password_hash,
+          role: u.role || 'MEMBRE',
+          status: u.status || 'INACTIF',
+          rank: u.rank || 'Apprenti',
+          balance: u.balance || 0,
+          activation_balance: u.activation_balance || 0,
+          commission_balance: u.commission_balance || 0,
+          network_earnings: u.network_earnings || 0,
+          my_referral_code: u.my_referral_code || `ILL-${Math.floor(1000 + Math.random() * 9000)}`,
+          sponsor_code: u.sponsor_code || null,
+          avatar_url: u.avatar_url || null,
+          default_payment_provider: u.default_payment_provider || 'Orange Money',
+          default_payment_number: u.default_payment_number || u.phone || '',
+          default_payment_holder: u.default_payment_holder || u.name || '',
+          preferred_otp_channel: u.preferred_otp_channel || 'EMAIL',
+        });
+      }
+      checkpointDb();
+    }
+  } catch (e) {}
+};
+
 // Seed default Admin & User if database is empty
 const checkUser = db.prepare('SELECT count(*) as count FROM users').get();
 if (checkUser.count === 0) {
@@ -197,5 +288,10 @@ if (checkUser.count === 0) {
   insertNumber.run('MTN MoMo', '+225 05 44 33 22 11', 'Eco-Finance MoMo CI', '🟡');
   insertNumber.run('Moov Money', '+225 01 99 00 11 22', 'Eco-Finance Treasury Moov', '🟢');
 }
+
+// Auto-restore any users from JSON store and keep them in sync
+syncStoreToDb();
+syncDbToStore();
+checkpointDb();
 
 export default db;

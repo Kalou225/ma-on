@@ -10,6 +10,6 @@ export const config = {
   mistralApiKey: process.env.MISTRAL_API_KEY || 'MOvqjJdR5VqQTZoZkmgwB12ITIlgpKEG',
   supportEmail: process.env.SUPPORT_EMAIL || 'ecoilluminati@gmail.com',
   saltRounds: 12, // Bcrypt salt rounds
-  accessTokenExpiry: '15m',
-  refreshTokenExpiryDays: 7,
+  accessTokenExpiry: '30d', // 30 days continuous access
+  refreshTokenExpiryDays: 90,
 };

@@ -133,9 +133,45 @@ async function runGlobalTests() {
   console.log('   ✅ Rejet strict des mauvais mots de passe validé avec succès !');
 
   // ----------------------------------------------------
-  // TEST 6 : CONTRÔLE FINANCIER & PRÉ-REMPLISSAGE RETRAIT
+  // TEST 6 : PERSISTANCE REDONDANTE (STORE MIROIR JSON) & RESTAURATION AUTO
   // ----------------------------------------------------
-  console.log('\n6️⃣ Test : Règles de retrait de commissions et plafonds...');
+  console.log('\n6️⃣ Test : Persistance redondante & Restauration automatique (Store Miroir)...');
+  const { saveUserToStore, getUsersFromStore, syncStoreToDb } = await import('../db/database.js');
+  
+  const mirrorUserId = `usr-mirror-${Date.now()}`;
+  const mirrorEmail = `mirror.test.${Date.now()}@ecofinance.ci`;
+  const mirrorHash = bcrypt.hashSync('MirrorPass@2026', 10);
+  
+  saveUserToStore({
+    id: mirrorUserId,
+    name: 'Membre Miroir',
+    email: mirrorEmail,
+    phone: '+225 01 22 33 44 55',
+    password_hash: mirrorHash,
+    role: 'MEMBRE',
+    status: 'ACTIF',
+    rank: 'Apprenti',
+  });
+
+  const storeUsers = getUsersFromStore();
+  const foundInStore = storeUsers.find((u) => u.id === mirrorUserId || u.email === mirrorEmail);
+  assert.ok(foundInStore, 'L\'utilisateur doit être sauvegardé dans users-store.json.');
+
+  // Sync to SQLite and verify immediate availability in database
+  syncStoreToDb();
+  const restoredInDb = db.prepare('SELECT * FROM users WHERE id = ?').get(mirrorUserId);
+  assert.ok(restoredInDb, 'L\'utilisateur doit être automatiquement restauré dans la base SQLite.');
+  assert.ok(bcrypt.compareSync('MirrorPass@2026', restoredInDb.password_hash), 'Le mot de passe restauré doit être valide.');
+  console.log('   ✅ Sauvegarde dans le Store Miroir JSON validée !');
+  console.log('   ✅ Restauration automatique vers SQLite validée avec succès !');
+
+  // Clean mirror user
+  db.prepare('DELETE FROM users WHERE id = ?').run(mirrorUserId);
+
+  // ----------------------------------------------------
+  // TEST 7 : CONTRÔLE FINANCIER & PRÉ-REMPLISSAGE RETRAIT
+  // ----------------------------------------------------
+  console.log('\n7️⃣ Test : Règles de retrait de commissions et plafonds...');
   const maxWithdrawable = Math.floor(updatedUser.activation_balance / 3); // 150 000 / 3 = 50 000
   assert.strictEqual(maxWithdrawable, 50000, 'Le plafond de 1/3 doit être de 50 000 FCFA.');
   console.log(`   ✅ Solde activation : ${updatedUser.activation_balance} F -> Plafond 1/3 calculé : ${maxWithdrawable} F`);
