@@ -24,6 +24,12 @@ import {
   UserX,
   Calendar,
   Share2,
+  Copy,
+  KeyRound,
+  Mail,
+  Phone,
+  CheckCircle2,
+  Lock,
 } from 'lucide-react';
 import { api } from '../services/api';
 
@@ -58,6 +64,13 @@ export const AdminView = () => {
   const [usersList, setUsersList] = useState([]);
   const [userSearch, setUserSearch] = useState('');
   const [userStatusFilter, setUserStatusFilter] = useState('ALL'); // 'ALL' | 'ACTIF' | 'INACTIF'
+  const [deletingUser, setDeletingUser] = useState(null); // User object for deletion modal
+  const [isDeletingUser, setIsDeletingUser] = useState(false);
+  const [resettingUser, setResettingUser] = useState(null); // User object for password reset modal
+  const [tempPassword, setTempPassword] = useState('EcoFinance@2026');
+  const [isResettingPassword, setIsResettingPassword] = useState(false);
+  const [copiedField, setCopiedField] = useState(null);
+  const [adminFeedback, setAdminFeedback] = useState(null); // { type: 'success' | 'error', message: string }
 
   // New Payment Number Form State
   const [provider, setProvider] = useState('Orange Money');
@@ -146,6 +159,49 @@ export const AdminView = () => {
     if (!deletingNumber) return;
     await deletePaymentNumber(deletingNumber.id);
     setDeletingNumber(null);
+  };
+
+  const handleCopy = (text, fieldName) => {
+    if (!text) return;
+    navigator.clipboard.writeText(text);
+    setCopiedField(fieldName);
+    setTimeout(() => setCopiedField(null), 2000);
+  };
+
+  const handleConfirmDeleteUser = async () => {
+    if (!deletingUser) return;
+    setIsDeletingUser(true);
+    try {
+      const res = await api.admin.deleteUser(deletingUser.id);
+      setAdminFeedback({ type: 'success', message: res.message || 'Utilisateur supprimé avec succès.' });
+      setDeletingUser(null);
+      await fetchUsers();
+    } catch (err) {
+      setAdminFeedback({ type: 'error', message: err.message || 'Erreur lors de la suppression.' });
+    } finally {
+      setIsDeletingUser(false);
+      setTimeout(() => setAdminFeedback(null), 4000);
+    }
+  };
+
+  const handleConfirmResetPassword = async (e) => {
+    e.preventDefault();
+    if (!resettingUser) return;
+    setIsResettingPassword(true);
+    try {
+      const res = await api.admin.resetUserPassword(resettingUser.id, tempPassword);
+      setAdminFeedback({
+        type: 'success',
+        message: `${res.message} Nouveau mot de passe temporaire : ${res.temporaryPassword || tempPassword}`,
+      });
+      setResettingUser(null);
+      setTempPassword('EcoFinance@2026');
+    } catch (err) {
+      setAdminFeedback({ type: 'error', message: err.message || 'Erreur lors de la réinitialisation.' });
+    } finally {
+      setIsResettingPassword(false);
+      setTimeout(() => setAdminFeedback(null), 6000);
+    }
   };
 
   const allPendingDeposits = pendingDeposits && pendingDeposits.length > 0
@@ -435,42 +491,57 @@ export const AdminView = () => {
 
         {/* TAB 3: USERS & MEMBERS DIRECTORY */}
         {activeAdminTab === 'users' && (
-          <div className="space-y-4 animate-in fade-in">
-            {/* Summary Statistics */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-              <div className="p-3.5 rounded-2xl bg-[#1d2022] border border-white/5 space-y-1">
-                <span className="text-[10px] text-[#99907c] uppercase tracking-wider font-semibold block">
-                  Total Inscrits
-                </span>
-                <p className="text-lg font-mono font-bold text-white">{usersList.length}</p>
-                <span className="text-[9px] text-[#F2CA50]">Membres & Admins</span>
+          <div className="space-y-4">
+            {/* Admin Action Feedback Banner */}
+            {adminFeedback && (
+              <div
+                className={`p-4 rounded-2xl text-xs font-semibold flex items-center justify-between border animate-in fade-in ${
+                  adminFeedback.type === 'success'
+                    ? 'bg-[#10B981]/15 text-[#10B981] border-[#10B981]/30'
+                    : 'bg-[#E63946]/15 text-[#E63946] border-[#E63946]/30'
+                }`}
+              >
+                <div className="flex items-center space-x-2">
+                  {adminFeedback.type === 'success' ? (
+                    <CheckCircle2 className="w-4 h-4 shrink-0" />
+                  ) : (
+                    <AlertTriangle className="w-4 h-4 shrink-0" />
+                  )}
+                  <span>{adminFeedback.message}</span>
+                </div>
+                <button
+                  onClick={() => setAdminFeedback(null)}
+                  className="p-1 hover:opacity-80 transition-opacity"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
               </div>
+            )}
 
-              <div className="p-3.5 rounded-2xl bg-[#1d2022] border border-white/5 space-y-1">
-                <span className="text-[10px] text-[#99907c] uppercase tracking-wider font-semibold block">
-                  Comptes Actifs
-                </span>
-                <p className="text-lg font-mono font-bold text-[#10B981]">
+            {/* Quick Metrics Bar */}
+            <div className="grid grid-cols-4 gap-2 text-center">
+              <div className="p-3 rounded-2xl bg-[#1d2022] border border-white/5 shadow-sm">
+                <span className="text-[10px] text-[#99907c] block uppercase font-semibold">Total Membres</span>
+                <p className="text-base font-extrabold text-white">{usersList.length}</p>
+                <span className="text-[9px] text-[#d0c5af]">Inscrits</span>
+              </div>
+              <div className="p-3 rounded-2xl bg-[#1d2022] border border-white/5 shadow-sm">
+                <span className="text-[10px] text-[#10B981] block uppercase font-semibold">Actifs</span>
+                <p className="text-base font-extrabold text-[#10B981]">
                   {usersList.filter((u) => u.status === 'ACTIF').length}
                 </p>
-                <span className="text-[9px] text-[#99907c]">
-                  {usersList.filter((u) => u.status !== 'ACTIF').length} inactifs
-                </span>
+                <span className="text-[9px] text-[#d0c5af]">Activés</span>
               </div>
-
-              <div className="p-3.5 rounded-2xl bg-[#1d2022] border border-white/5 space-y-1">
-                <span className="text-[10px] text-[#99907c] uppercase tracking-wider font-semibold block">
-                  Total Activation
-                </span>
-                <p className="text-sm font-mono font-bold text-white truncate">
-                  {usersList.reduce((acc, u) => acc + (u.activation_balance || 0), 0).toLocaleString()} <span className="text-[9px]">F</span>
+              <div className="p-3 rounded-2xl bg-[#1d2022] border border-white/5 shadow-sm">
+                <span className="text-[10px] text-[#E63946] block uppercase font-semibold">Inactifs</span>
+                <p className="text-base font-extrabold text-[#E63946]">
+                  {usersList.filter((u) => u.status !== 'ACTIF').length}
                 </p>
-                <span className="text-[9px] text-[#10B981]">Fonds injectés</span>
+                <span className="text-[9px] text-[#d0c5af]">En attente</span>
               </div>
-
-              <div className="p-3.5 rounded-2xl bg-[#1d2022] border border-white/5 space-y-1">
-                <span className="text-[10px] text-[#99907c] uppercase tracking-wider font-semibold block">
-                  Gains Réseau Total
+              <div className="p-3 rounded-2xl bg-[#1d2022] border border-white/5 shadow-sm">
+                <span className="text-[10px] text-[#F2CA50] block uppercase font-semibold truncate">
+                  Total MLM
                 </span>
                 <p className="text-sm font-mono font-bold text-[#F2CA50] truncate">
                   {usersList.reduce((acc, u) => acc + (u.network_earnings || 0), 0).toLocaleString()} <span className="text-[9px]">F</span>
@@ -510,7 +581,7 @@ export const AdminView = () => {
             </div>
 
             {/* Users List Cards */}
-            <div className="space-y-3">
+            <div className="space-y-3.5">
               {usersList
                 .filter((u) => {
                   const q = userSearch.toLowerCase().trim();
@@ -532,16 +603,16 @@ export const AdminView = () => {
                 .map((u) => (
                   <div
                     key={u.id}
-                    className="p-4 rounded-3xl bg-[#1d2022] border border-white/10 space-y-3 shadow-lg hover:border-white/20 transition-all"
+                    className="p-4 rounded-3xl bg-[#1d2022] border border-white/10 space-y-3.5 shadow-xl hover:border-white/20 transition-all"
                   >
                     {/* User Header Row */}
                     <div className="flex items-start justify-between">
                       <div className="flex items-center space-x-3">
-                        <div className="w-10 h-10 rounded-2xl bg-[#272a2d] border border-white/10 flex items-center justify-center font-bold text-sm text-[#F2CA50] shrink-0">
+                        <div className="w-11 h-11 rounded-2xl bg-[#272a2d] border border-white/10 flex items-center justify-center font-extrabold text-base text-[#F2CA50] shrink-0 shadow-inner">
                           {u.name ? u.name.charAt(0).toUpperCase() : 'U'}
                         </div>
                         <div>
-                          <div className="flex items-center space-x-2">
+                          <div className="flex items-center space-x-2 flex-wrap gap-y-1">
                             <h3 className="font-bold text-sm text-white">{u.name}</h3>
                             <span
                               className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${
@@ -562,14 +633,126 @@ export const AdminView = () => {
                               {u.status === 'ACTIF' ? '● ACTIF' : '○ INACTIF'}
                             </span>
                           </div>
-                          <p className="text-xs text-[#d0c5af] mt-0.5">{u.email}</p>
-                          <p className="text-[11px] font-mono text-[#99907c]">{u.phone}</p>
+                          <p className="text-[10px] text-[#99907c] mt-0.5">
+                            ID: <span className="font-mono">{u.id}</span> • Inscrit le {u.created_at ? new Date(u.created_at).toLocaleDateString() : 'N/A'}
+                          </p>
                         </div>
                       </div>
 
                       <span className="text-[11px] font-bold px-2.5 py-1 rounded-xl bg-[#F2CA50]/15 text-[#F2CA50] border border-[#F2CA50]/30 shrink-0">
                         {u.rank || 'Apprenti'}
                       </span>
+                    </div>
+
+                    {/* IDENTIFIANTS DE CONNEXION (DÉDIÉ) */}
+                    <div className="p-3.5 rounded-2xl bg-[#141719] border border-[#F2CA50]/20 space-y-2">
+                      <div className="flex items-center justify-between pb-1.5 border-b border-white/5">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-[#F2CA50] flex items-center space-x-1.5">
+                          <KeyRound className="w-3.5 h-3.5 text-[#F2CA50]" />
+                          <span>Identifiants de Connexion</span>
+                        </span>
+                        <span className="text-[10px] text-[#99907c]">Authentification Membre</span>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                        {/* Email */}
+                        <div className="flex items-center justify-between p-2 rounded-xl bg-[#101416] border border-white/5">
+                          <div className="flex items-center space-x-2 min-w-0">
+                            <Mail className="w-3.5 h-3.5 text-[#F2CA50] shrink-0" />
+                            <div className="min-w-0">
+                              <span className="text-[9px] text-[#99907c] block">Email :</span>
+                              <span className="font-mono text-white truncate block text-[11px] select-all">
+                                {u.email}
+                              </span>
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => handleCopy(u.email, `email-${u.id}`)}
+                            className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-[#d0c5af] hover:text-white transition-colors shrink-0 ml-2"
+                            title="Copier l'email"
+                          >
+                            {copiedField === `email-${u.id}` ? (
+                              <Check className="w-3.5 h-3.5 text-[#10B981]" />
+                            ) : (
+                              <Copy className="w-3.5 h-3.5" />
+                            )}
+                          </button>
+                        </div>
+
+                        {/* Téléphone */}
+                        <div className="flex items-center justify-between p-2 rounded-xl bg-[#101416] border border-white/5">
+                          <div className="flex items-center space-x-2 min-w-0">
+                            <Phone className="w-3.5 h-3.5 text-[#10B981] shrink-0" />
+                            <div className="min-w-0">
+                              <span className="text-[9px] text-[#99907c] block">Numéro Mobile :</span>
+                              <span className="font-mono text-white truncate block text-[11px] select-all">
+                                {u.phone || 'Non renseigné'}
+                              </span>
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => handleCopy(u.phone, `phone-${u.id}`)}
+                            className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-[#d0c5af] hover:text-white transition-colors shrink-0 ml-2"
+                            title="Copier le numéro"
+                          >
+                            {copiedField === `phone-${u.id}` ? (
+                              <Check className="w-3.5 h-3.5 text-[#10B981]" />
+                            ) : (
+                              <Copy className="w-3.5 h-3.5" />
+                            )}
+                          </button>
+                        </div>
+
+                        {/* Code Parrainage Membre */}
+                        <div className="flex items-center justify-between p-2 rounded-xl bg-[#101416] border border-white/5">
+                          <div className="flex items-center space-x-2 min-w-0">
+                            <Award className="w-3.5 h-3.5 text-[#F2CA50] shrink-0" />
+                            <div className="min-w-0">
+                              <span className="text-[9px] text-[#99907c] block">Code Parrainage :</span>
+                              <span className="font-mono font-bold text-[#F2CA50] text-[11px]">
+                                {u.my_referral_code || 'N/A'}
+                              </span>
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => handleCopy(u.my_referral_code, `code-${u.id}`)}
+                            className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-[#d0c5af] hover:text-white transition-colors shrink-0 ml-2"
+                            title="Copier le code"
+                          >
+                            {copiedField === `code-${u.id}` ? (
+                              <Check className="w-3.5 h-3.5 text-[#10B981]" />
+                            ) : (
+                              <Copy className="w-3.5 h-3.5" />
+                            )}
+                          </button>
+                        </div>
+
+                        {/* Parrain Référent */}
+                        <div className="flex items-center justify-between p-2 rounded-xl bg-[#101416] border border-white/5">
+                          <div className="flex items-center space-x-2 min-w-0">
+                            <Share2 className="w-3.5 h-3.5 text-[#99907c] shrink-0" />
+                            <div className="min-w-0">
+                              <span className="text-[9px] text-[#99907c] block">Parrain (Sponsor) :</span>
+                              <span className="font-mono text-white text-[11px]">
+                                {u.sponsor_code || 'Racine'}
+                              </span>
+                            </div>
+                          </div>
+                          {u.sponsor_code && (
+                            <button
+                              onClick={() => handleCopy(u.sponsor_code, `sponsor-${u.id}`)}
+                              className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-[#d0c5af] hover:text-white transition-colors shrink-0 ml-2"
+                              title="Copier le code parrain"
+                            >
+                              {copiedField === `sponsor-${u.id}` ? (
+                                <Check className="w-3.5 h-3.5 text-[#10B981]" />
+                              ) : (
+                                <Copy className="w-3.5 h-3.5" />
+                              )}
+                            </button>
+                          )}
+                        </div>
+                      </div>
                     </div>
 
                     {/* Financial Balances Breakdown */}
@@ -600,24 +783,46 @@ export const AdminView = () => {
                       </div>
                     </div>
 
-                    {/* Referral Details Footer */}
-                    <div className="flex flex-wrap items-center justify-between text-[11px] text-[#99907c] pt-1 border-t border-white/5 gap-2">
-                      <div className="flex items-center space-x-3">
-                        <span>
-                          Code : <strong className="font-mono text-[#F2CA50]">{u.my_referral_code || 'N/A'}</strong>
-                        </span>
-                        <span>
-                          Parrain : <strong className="font-mono text-white">{u.sponsor_code || 'Aucun (Racine)'}</strong>
-                        </span>
-                      </div>
-
-                      <div className="flex items-center space-x-3">
+                    {/* Action Buttons Row */}
+                    <div className="flex items-center justify-between pt-2 border-t border-white/5 gap-2 flex-wrap">
+                      <div className="flex items-center space-x-3 text-[11px] text-[#99907c]">
                         <span className="text-[#10B981] font-semibold">
                           👥 {u.direct_referrals_count || 0} filleuls
                         </span>
-                        <span className="text-[10px]">
-                          📅 {u.created_at ? new Date(u.created_at).toLocaleDateString() : 'N/A'}
+                        <span>
+                          💳 {u.total_transactions || 0} txns
                         </span>
+                      </div>
+
+                      <div className="flex items-center space-x-2">
+                        {/* Bouton Réinitialiser Mot de passe */}
+                        <button
+                          onClick={() => {
+                            setResettingUser(u);
+                            setTempPassword('EcoFinance@2026');
+                          }}
+                          className="px-3 py-1.5 rounded-xl bg-[#272a2d] hover:bg-[#383c40] text-[#F2CA50] border border-[#F2CA50]/30 text-xs font-bold flex items-center space-x-1.5 transition-all active:scale-95 shadow-sm"
+                          title="Réinitialiser le mot de passe de l'utilisateur"
+                        >
+                          <KeyRound className="w-3.5 h-3.5" />
+                          <span>Réinitialiser MDP</span>
+                        </button>
+
+                        {/* Bouton Supprimer l'Utilisateur */}
+                        {u.role === 'ADMIN' || u.id === user?.id ? (
+                          <span className="px-3 py-1.5 rounded-xl bg-white/5 text-[#99907c] text-xs font-semibold border border-white/10 cursor-not-allowed">
+                            Admin Protégé
+                          </span>
+                        ) : (
+                          <button
+                            onClick={() => setDeletingUser(u)}
+                            className="px-3 py-1.5 rounded-xl bg-[#E63946]/15 hover:bg-[#E63946] text-[#E63946] hover:text-white border border-[#E63946]/30 hover:border-[#E63946] text-xs font-bold flex items-center space-x-1.5 transition-all active:scale-95 shadow-sm"
+                            title="Supprimer définitivement cet utilisateur"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            <span>Supprimer</span>
+                          </button>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -949,6 +1154,135 @@ export const AdminView = () => {
                   </div>
                 ))
               )}
+            </div>
+          </div>
+        )}
+
+        {/* Modal 4: Delete User Confirmation */}
+        {deletingUser && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm animate-in fade-in">
+            <div className="bg-[#191c1e] border border-[#E63946] rounded-3xl w-full max-w-md p-6 space-y-4 shadow-2xl text-center animate-in zoom-in-95">
+              <div className="w-12 h-12 rounded-2xl bg-[#E63946]/20 border border-[#E63946]/40 flex items-center justify-center text-[#E63946] mx-auto">
+                <Trash2 className="w-6 h-6" />
+              </div>
+
+              <div className="space-y-1.5">
+                <h4 className="text-base font-bold text-white">Supprimer Définitivement cet Utilisateur ?</h4>
+                <p className="text-xs text-[#d0c5af]">
+                  Êtes-vous sûr de vouloir supprimer le compte de <strong className="text-white">{deletingUser.name}</strong> ?
+                </p>
+                <div className="p-3 rounded-2xl bg-[#101416] border border-white/5 text-left text-xs font-mono space-y-1 mt-2">
+                  <p className="text-[#99907c]">Email : <span className="text-white">{deletingUser.email}</span></p>
+                  <p className="text-[#99907c]">Téléphone : <span className="text-white">{deletingUser.phone}</span></p>
+                  <p className="text-[#99907c]">Code Parrainage : <span className="text-[#F2CA50]">{deletingUser.my_referral_code}</span></p>
+                  <p className="text-[#99907c]">Solde Commission : <span className="text-[#10B981]">{(deletingUser.commission_balance || 0).toLocaleString()} F</span></p>
+                </div>
+                <p className="text-[11px] text-[#E63946] pt-1 font-sans">
+                  ⚠️ Cette action est irréversible. Toutes ses transactions et notifications associées seront également supprimées.
+                </p>
+              </div>
+
+              <div className="flex space-x-2 pt-2">
+                <button
+                  onClick={handleConfirmDeleteUser}
+                  disabled={isDeletingUser}
+                  className="flex-1 py-3 rounded-xl bg-[#E63946] hover:brightness-110 text-white font-bold text-xs shadow-lg active:scale-95 transition-all flex items-center justify-center space-x-2 disabled:opacity-50"
+                >
+                  {isDeletingUser ? (
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <>
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Confirmer la suppression</span>
+                    </>
+                  )}
+                </button>
+                <button
+                  onClick={() => setDeletingUser(null)}
+                  disabled={isDeletingUser}
+                  className="px-4 py-3 rounded-xl bg-[#272a2d] text-[#99907c] hover:text-white font-bold text-xs transition-colors"
+                >
+                  Annuler
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal 5: Reset User Password */}
+        {resettingUser && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm animate-in fade-in">
+            <div className="bg-[#191c1e] border border-[#F2CA50]/40 rounded-3xl w-full max-w-md p-6 space-y-4 shadow-2xl animate-in zoom-in-95">
+              <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                <div className="flex items-center space-x-2">
+                  <div className="w-8 h-8 rounded-xl bg-[#F2CA50]/20 flex items-center justify-center border border-[#F2CA50]/40 text-[#F2CA50]">
+                    <KeyRound className="w-4 h-4" />
+                  </div>
+                  <div className="text-left">
+                    <h4 className="text-sm font-bold text-white">Réinitialiser Mot de Passe</h4>
+                    <p className="text-[11px] text-[#99907c]">{resettingUser.name} ({resettingUser.email})</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setResettingUser(null)}
+                  className="w-7 h-7 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center text-[#99907c] hover:text-white"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <form onSubmit={handleConfirmResetPassword} className="space-y-3 text-xs text-left">
+                <div>
+                  <label className="block text-[#99907c] mb-1 font-semibold">Nouveau Mot de Passe Temporaire</label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={tempPassword}
+                      onChange={(e) => setTempPassword(e.target.value)}
+                      placeholder="ex: EcoFinance@2026"
+                      required
+                      minLength={8}
+                      className="w-full bg-[#101416] border border-white/10 rounded-xl p-3 pr-20 text-white font-mono outline-none focus:border-[#F2CA50]"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setTempPassword(`Eco@${Math.floor(100000 + Math.random() * 900000)}`)}
+                      className="absolute right-2 top-2 px-2.5 py-1 rounded-lg bg-white/10 text-[10px] font-bold text-[#F2CA50] hover:bg-white/20"
+                      title="Générer mot de passe aléatoire"
+                    >
+                      Aléatoire
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-[#99907c] mt-1">
+                    Transmettez ce mot de passe à l'utilisateur afin qu'il puisse se reconnecter immédiatement.
+                  </p>
+                </div>
+
+                <div className="flex space-x-2 pt-2">
+                  <button
+                    type="submit"
+                    disabled={isResettingPassword || !tempPassword}
+                    className="flex-1 py-3 rounded-xl gold-gradient-bg text-black font-bold text-xs hover:brightness-110 shadow-lg active:scale-95 transition-all flex items-center justify-center space-x-1.5 disabled:opacity-50"
+                  >
+                    {isResettingPassword ? (
+                      <RefreshCw className="w-4 h-4 animate-spin text-black" />
+                    ) : (
+                      <>
+                        <KeyRound className="w-3.5 h-3.5" />
+                        <span>Appliquer le Nouveau Mot de Passe</span>
+                      </>
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setResettingUser(null)}
+                    disabled={isResettingPassword}
+                    className="px-4 py-3 rounded-xl bg-[#272a2d] text-[#99907c] hover:text-white font-bold text-xs transition-colors"
+                  >
+                    Annuler
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         )}

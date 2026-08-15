@@ -177,8 +177,33 @@ async function runGlobalTests() {
   console.log(`   ✅ Solde activation : ${updatedUser.activation_balance} F -> Plafond 1/3 calculé : ${maxWithdrawable} F`);
   console.log(`   ✅ Coordonnées pré-remplies pour le retrait : ${updatedUser.default_payment_provider} - ${updatedUser.default_payment_number}`);
 
-  // Nettoyage de l'utilisateur de test
+  // ----------------------------------------------------
+  // TEST 8 : RÉINITIALISATION MDP & SUPPRESSION UTILISATEUR (BACK-OFFICE ADMIN)
+  // ----------------------------------------------------
+  console.log('\n8️⃣ Test : Réinitialisation MDP & Suppression Utilisateur par l\'Administrateur...');
+  const { removeUserFromStore } = await import('../db/database.js');
+  
+  // Test password reset by admin
+  const adminTempPass = 'EcoAdminTemp@2026';
+  const newHash = bcrypt.hashSync(adminTempPass, 12);
+  db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(newHash, userId);
+  const resetUser = db.prepare('SELECT password_hash FROM users WHERE id = ?').get(userId);
+  assert.ok(bcrypt.compareSync(adminTempPass, resetUser.password_hash), 'Le mot de passe temporaire doit être vérifié avec succès.');
+  console.log('   ✅ Réinitialisation administrative du mot de passe validée !');
+
+  // Test user deletion by admin
+  db.prepare('DELETE FROM transactions WHERE user_id = ?').run(userId);
   db.prepare('DELETE FROM users WHERE id = ?').run(userId);
+  removeUserFromStore(userId);
+  
+  const checkDeletedDb = db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
+  assert.strictEqual(checkDeletedDb, undefined, 'L\'utilisateur doit être complètement supprimé de SQLite.');
+  
+  const checkDeletedStore = getUsersFromStore().find((u) => u.id === userId);
+  assert.strictEqual(checkDeletedStore, undefined, 'L\'utilisateur doit être complètement supprimé du store miroir.');
+  console.log('   ✅ Suppression définitive de l\'utilisateur (SQLite + Store Miroir) validée avec succès !');
+
+  // Nettoyage OTP
   db.prepare('DELETE FROM otp_verifications WHERE identifier = ?').run(testEmail.toLowerCase());
 
   console.log('\n========================================================');

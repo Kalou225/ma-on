@@ -225,6 +225,19 @@ export const api = {
         method: 'DELETE',
       });
     },
+
+    deleteUser: async (id) => {
+      return customFetch(`/admin/users/${id}`, {
+        method: 'DELETE',
+      });
+    },
+
+    resetUserPassword: async (id, newPassword) => {
+      return customFetch(`/admin/users/${id}/reset-password`, {
+        method: 'POST',
+        body: JSON.stringify({ newPassword }),
+      });
+    },
   },
 
   // Chatbot API (Mistral AI)

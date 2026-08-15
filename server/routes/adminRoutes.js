@@ -1,5 +1,7 @@
 import express from 'express';
-import db from '../db/database.js';
+import bcrypt from 'bcryptjs';
+import db, { checkpointDb, saveUserToStore, removeUserFromStore } from '../db/database.js';
+import { config } from '../config/security.js';
 import { authenticateToken, requireRole } from '../middleware/authMiddleware.js';
 import { logSecurityEvent } from '../services/auditLogger.js';
 import { createNotification } from '../services/notificationService.js';
@@ -440,6 +442,77 @@ router.delete('/payment-numbers/:id', (req, res) => {
   });
 
   res.json({ message: 'Numéro d\'encaissement supprimé avec succès.' });
+});
+
+// 9. DELETE USER (ADMIN)
+router.delete('/users/:id', (req, res) => {
+  const { id } = req.params;
+
+  if (id === req.user.id) {
+    return res.status(400).json({ error: 'Vous ne pouvez pas supprimer votre propre compte administrateur.' });
+  }
+
+  const targetUser = db.prepare('SELECT id, name, email, phone, role FROM users WHERE id = ?').get(id);
+  if (!targetUser) {
+    return res.status(404).json({ error: 'Utilisateur introuvable.' });
+  }
+
+  if (targetUser.role === 'ADMIN') {
+    return res.status(403).json({ error: 'La suppression d\'un compte administrateur est interdite.' });
+  }
+
+  // Delete related data in atomic transaction
+  const executeDelete = db.transaction(() => {
+    db.prepare('DELETE FROM transactions WHERE user_id = ?').run(id);
+    db.prepare('DELETE FROM notifications WHERE user_id = ?').run(id);
+    db.prepare('DELETE FROM refresh_tokens WHERE user_id = ?').run(id);
+    db.prepare('DELETE FROM users WHERE id = ?').run(id);
+  });
+
+  executeDelete();
+  removeUserFromStore(id);
+  checkpointDb();
+
+  logSecurityEvent('USER_DELETED_BY_ADMIN', {
+    userId: req.user.id,
+    ip: req.ip,
+    details: { targetUserId: id, targetEmail: targetUser.email, targetName: targetUser.name, targetPhone: targetUser.phone },
+    severity: 'HIGH',
+  });
+
+  res.json({
+    message: `Compte utilisateur (${targetUser.name} - ${targetUser.email}) supprimé avec succès.`,
+  });
+});
+
+// 10. RESET USER PASSWORD (ADMIN)
+router.post('/users/:id/reset-password', (req, res) => {
+  const { id } = req.params;
+  const { newPassword } = req.body;
+
+  const targetUser = db.prepare('SELECT id, name, email, phone FROM users WHERE id = ?').get(id);
+  if (!targetUser) {
+    return res.status(404).json({ error: 'Utilisateur introuvable.' });
+  }
+
+  const finalPassword = newPassword && newPassword.trim().length >= 8 ? newPassword.trim() : 'EcoFinance@2026';
+  const passwordHash = bcrypt.hashSync(finalPassword, config.saltRounds);
+
+  db.prepare('UPDATE users SET password_hash = ?, failed_attempts = 0, lockout_until = NULL WHERE id = ?').run(passwordHash, id);
+  saveUserToStore({ id, password_hash: passwordHash });
+  checkpointDb();
+
+  logSecurityEvent('USER_PASSWORD_RESET_BY_ADMIN', {
+    userId: req.user.id,
+    ip: req.ip,
+    details: { targetUserId: id, targetEmail: targetUser.email },
+    severity: 'HIGH',
+  });
+
+  res.json({
+    message: `Mot de passe réinitialisé avec succès pour ${targetUser.name}.`,
+    temporaryPassword: finalPassword,
+  });
 });
 
 export default router;

@@ -181,6 +181,15 @@ export const saveUserToStore = (user) => {
   } catch (e) {}
 };
 
+// Helper to remove a user from mirror JSON store
+export const removeUserFromStore = (userId) => {
+  try {
+    const users = getUsersFromStore();
+    const filtered = users.filter((u) => u.id !== userId && u.email?.toLowerCase() !== userId?.toLowerCase());
+    fs.writeFileSync(usersStorePath, JSON.stringify(filtered, null, 2), 'utf8');
+  } catch (e) {}
+};
+
 // Helper to sync all database users into the JSON store
 export const syncDbToStore = () => {
   try {
