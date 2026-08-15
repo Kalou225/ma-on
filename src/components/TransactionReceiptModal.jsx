@@ -15,7 +15,7 @@ export const TransactionReceiptModal = () => {
   const isUpgrade = (txn.type || '').includes('UPGRADE');
 
   const handleShare = async () => {
-    const shareText = `Reçu de Transaction Ma-On Éco-Finance\n` +
+    const shareText = `Reçu de Transaction Éco-Finance\n` +
       `• ID : ${txn.id || 'N/A'}\n` +
       `• Montant : ${Number(txn.amount || 0).toLocaleString()} FCFA\n` +
       `• Type : ${txn.label || txn.type}\n` +
@@ -26,7 +26,7 @@ export const TransactionReceiptModal = () => {
     if (navigator.share) {
       try {
         await navigator.share({
-          title: `Reçu ${txn.id} - Ma-On Éco-Finance`,
+          title: `Reçu ${txn.id} - Éco-Finance`,
           text: shareText,
         });
       } catch (e) {}
@@ -86,7 +86,7 @@ export const TransactionReceiptModal = () => {
             <div className="flex items-center justify-between border-b border-white/10 pb-2.5">
               <div>
                 <span className="text-[9px] uppercase tracking-widest text-[#F2CA50] font-extrabold block">
-                  MA-ON ÉCO-FINANCE
+                  ÉCO-FINANCE
                 </span>
                 <span className="text-[10px] font-mono text-[#99907c] block mt-0.5">
                   Ref: {txn.id || 'N/A'}
@@ -164,7 +164,7 @@ export const TransactionReceiptModal = () => {
                 <ShieldCheck className="w-3.5 h-3.5 text-[#10B981]" />
                 <span>Certification Cryptographique</span>
               </div>
-              <span className="font-mono text-[#F2CA50]">MA-ON-SECURE</span>
+              <span className="font-mono text-[#F2CA50]">ECO-FINANCE-SECURE</span>
             </div>
           </div>
 

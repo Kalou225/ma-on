@@ -35,7 +35,7 @@ export const downloadTransactionReceiptPDF = (txn, user = {}) => {
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(14);
   doc.setTextColor(242, 202, 80);
-  doc.text('MA-ON • ÉCO-FINANCE', pageWidth / 2, 12, { align: 'center' });
+  doc.text('ÉCO-FINANCE', pageWidth / 2, 12, { align: 'center' });
 
   doc.setFontSize(7.5);
   doc.setFont('helvetica', 'normal');
@@ -104,7 +104,7 @@ export const downloadTransactionReceiptPDF = (txn, user = {}) => {
   if (txn.recipientNumber || txn.recipient_number) {
     drawRow('N° Destinataire :', txn.recipientNumber || txn.recipient_number);
   }
-  drawRow('Bénéficiaire / Membre :', user.name || 'Membre Ma-On');
+  drawRow('Bénéficiaire / Membre :', user.name || 'Membre Éco-Finance');
   drawRow('Statut de l\'Opération :', txn.status || 'VALIDÉ', false, true);
 
   // Tampon de Certification Numérique
@@ -126,7 +126,7 @@ export const downloadTransactionReceiptPDF = (txn, user = {}) => {
   // Pied de page
   doc.setFontSize(5.5);
   doc.setTextColor(110, 105, 95);
-  doc.text('Ce reçu électronique constitue une preuve de transaction officielle sur la plateforme Ma-On.', pageWidth / 2, pageHeight - 3, { align: 'center' });
+  doc.text('Ce reçu électronique constitue une preuve de transaction officielle sur la plateforme Éco-Finance.', pageWidth / 2, pageHeight - 3, { align: 'center' });
 
   const fileName = `Recu-${txn.id || 'Transaction'}-${new Date().toISOString().slice(0, 10)}.pdf`;
   doc.save(fileName);
@@ -164,7 +164,7 @@ export const downloadTransactionReceiptJPEG = (txn, user = {}) => {
   ctx.font = 'bold 20px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
   ctx.fillStyle = '#F2CA50';
   ctx.textAlign = 'center';
-  ctx.fillText('MA-ON • ÉCO-FINANCE', w / 2, 40);
+  ctx.fillText('ÉCO-FINANCE', w / 2, 40);
 
   ctx.font = '600 11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
   ctx.fillStyle = '#99907c';
@@ -235,7 +235,7 @@ export const downloadTransactionReceiptJPEG = (txn, user = {}) => {
   if (txn.recipientNumber || txn.recipient_number) {
     drawCanvasRow('N° Destinataire :', txn.recipientNumber || txn.recipient_number);
   }
-  drawCanvasRow('Bénéficiaire / Membre :', user.name || 'Membre Ma-On');
+  drawCanvasRow('Bénéficiaire / Membre :', user.name || 'Membre Éco-Finance');
   drawCanvasRow('Statut de l\'Opération :', txn.status || 'VALIDÉ', '#10B981', true);
 
   // Sceau numérique en bas
@@ -257,7 +257,7 @@ export const downloadTransactionReceiptJPEG = (txn, user = {}) => {
   // Footer
   ctx.font = '9px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
   ctx.fillStyle = '#666';
-  ctx.fillText('Plateforme financière sécurisée Ma-On • Document officiel', w / 2, h - 15);
+  ctx.fillText('Plateforme financière sécurisée Éco-Finance • Document officiel', w / 2, h - 15);
 
   // Téléchargement JPEG
   const link = document.createElement('a');
@@ -289,7 +289,7 @@ export const downloadHistoryStatementPDF = (transactions = [], user = {}, filter
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(16);
   doc.setTextColor(242, 202, 80);
-  doc.text('MA-ON • ÉCO-FINANCE', 15, 14);
+  doc.text('ÉCO-FINANCE', 15, 14);
 
   doc.setFontSize(8.5);
   doc.setFont('helvetica', 'normal');
@@ -426,7 +426,7 @@ export const downloadHistoryStatementPDF = (transactions = [], user = {}, filter
   // Footer officiel
   doc.setFontSize(6.5);
   doc.setTextColor(120, 120, 120);
-  doc.text('Document généré électroniquement par Ma-On Éco-Finance. Fait foi de relevé bancaire et d\'activités MLM.', pageWidth / 2, pageHeight - 8, { align: 'center' });
+  doc.text('Document généré électroniquement par Éco-Finance. Fait foi de relevé bancaire et d\'activités MLM.', pageWidth / 2, pageHeight - 8, { align: 'center' });
 
   const fileName = `Releve-Transactions-${new Date().toISOString().slice(0, 10)}.pdf`;
   doc.save(fileName);
@@ -465,7 +465,7 @@ export const downloadHistoryStatementJPEG = (transactions = [], user = {}, filte
   ctx.font = 'bold 18px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
   ctx.fillStyle = '#F2CA50';
   ctx.textAlign = 'left';
-  ctx.fillText('MA-ON • ÉCO-FINANCE', 20, 32);
+  ctx.fillText('ÉCO-FINANCE', 20, 32);
 
   ctx.font = '11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
   ctx.fillStyle = '#99907c';
@@ -558,7 +558,7 @@ export const downloadHistoryStatementJPEG = (transactions = [], user = {}, filte
   ctx.textAlign = 'center';
   ctx.font = '9px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
   ctx.fillStyle = '#666';
-  ctx.fillText('Plateforme financière sécurisée Ma-On • Document de synthèse officiel', w / 2, h - 15);
+  ctx.fillText('Plateforme financière sécurisée Éco-Finance • Document de synthèse officiel', w / 2, h - 15);
 
   const link = document.createElement('a');
   link.download = `Releve-Transactions-${new Date().toISOString().slice(0, 10)}.jpeg`;
